@@ -97,7 +97,7 @@ const submitQuizAttempt = async (quizId, userId, answers) => {
   const passed = percentage >= quiz.passingScore;
 
   // save the attempt
-  return await QuizAttemptModel.create({
+  const attempt = await QuizAttemptModel.create({
     quiz: quizId,
     user: userId,
     answers: processedAnswers,
@@ -106,22 +106,124 @@ const submitQuizAttempt = async (quizId, userId, answers) => {
     passed,
     submittedAt: new Date(),
   });
+
+  const reviewedAnswers = processedAnswers.map((answer) => {
+    const question = questionMap.get(answer.question.toString());
+
+    const selectedOption = question.options.find(
+      (option) =>
+        option._id.toString() === answer.selectedOption.toString()
+    );
+
+    const correctOption = question.options.find(
+      (option) => option.isCorrect === true
+    );
+
+    return {
+      question: question._id,
+      selectedOption: selectedOption._id,
+      isCorrect: selectedOption.isCorrect,
+      correctOption: correctOption
+        ? {
+          _id: correctOption._id,
+          text: correctOption.text,
+        }
+        : null,
+    };
+  });
+
+  return {
+    ...attempt.toObject(),
+    answers: reviewedAnswers,
+  };
 };
 
 const getAttemptById = async (attemptId, userId) => {
   const attempt = await QuizAttemptModel.findById(attemptId)
     .populate("quiz", "title passingScore")
-    .populate("user", "fullname email");
+    .populate("user", "fullname email")
+    .lean();
 
   if (!attempt) {
     throw new AppError("Quiz attempt not found", 404);
   }
 
   if (attempt.user._id.toString() !== userId.toString()) {
-    throw new AppError("You are not authorized to view this quiz attempt", 403);
+    throw new AppError(
+      "You are not authorized to view this quiz attempt",
+      403
+    );
   }
 
-  return attempt;
+  // Get all questions belonging to this quiz
+  const questions = await QuestionModel.find({
+    quiz: attempt.quiz._id,
+  }).lean();
+
+  const questionMap = new Map(
+    questions.map((question) => [
+      question._id.toString(),
+      question,
+    ])
+  );
+
+  // Build complete answer review
+  const reviewedAnswers = attempt.answers.map((answer) => {
+    const question = questionMap.get(
+      answer.question.toString()
+    );
+
+    if (!question) {
+      return {
+        question: answer.question,
+        selectedOption: answer.selectedOption,
+        isCorrect: false,
+        correctOption: null,
+      };
+    }
+
+    const selectedOption = question.options.find(
+      (option) =>
+        option._id.toString() ===
+        answer.selectedOption.toString()
+    );
+
+    const correctOption = question.options.find(
+      (option) => option.isCorrect === true
+    );
+
+    return {
+      question: {
+        _id: question._id,
+        text: question.question,
+        points: question.points,
+        order: question.order,
+      },
+
+      selectedOption: selectedOption
+        ? {
+          _id: selectedOption._id,
+          text: selectedOption.text,
+        }
+        : null,
+
+      isCorrect: selectedOption
+        ? selectedOption.isCorrect === true
+        : false,
+
+      correctOption: correctOption
+        ? {
+          _id: correctOption._id,
+          text: correctOption.text,
+        }
+        : null,
+    };
+  });
+
+  return {
+    ...attempt,
+    answers: reviewedAnswers,
+  };
 };
 
 const getMyAttemptsByQuiz = async (quizId, userId) => {
