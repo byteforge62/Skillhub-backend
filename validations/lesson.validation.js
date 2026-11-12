@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { httpUrlSchema } = require("./common.validation");
 
 const objectIdSchema = z
   .string()
@@ -25,7 +26,7 @@ const imageBlockSchema = z.object({
   type: z.literal("image"),
   order: z.number().int().min(1),
   data: z.object({
-    url: z.string().url("Invalid image URL"),
+    url: httpUrlSchema,
     alt: z.string().trim().max(200).optional().default(""),
     caption: z.string().trim().max(300).optional().default(""),
   }),
@@ -35,7 +36,7 @@ const videoBlockSchema = z.object({
   type: z.literal("video"),
   order: z.number().int().min(1),
   data: z.object({
-    url: z.string().url("Invalid video URL"),
+    url: httpUrlSchema,
     provider: z.string().trim().min(1).max(50).optional(),
   }),
 });

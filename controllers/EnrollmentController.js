@@ -15,17 +15,18 @@ const GetMyEnrollments = catchAsync(async (req, res) => {
 
 const GetMyEnrollmentById = catchAsync(async (req, res) => {
   const enrollment =
-    await EnrollmentService.getMyEnrollmentById(req.params.enrollmentId,req.user.id);
+    await EnrollmentService.getMyEnrollmentById(req.validated.params.enrollmentId,req.user.id);
     return ResponseHandler.success(res,"Enrollment fetched successfully",enrollment);
 });
 
 const CompleteLesson = catchAsync(async (req, res) => {
-  const enrollment = await EnrollmentService.completeLesson(req.params.enrollmentId,req.params.lessonId,req.user.id);
+  const { enrollmentId, lessonId } = req.validated.params;
+  const enrollment = await EnrollmentService.completeLesson(enrollmentId,lessonId,req.user.id);
   return ResponseHandler.success(res,"Lesson marked as completed",enrollment);
 });
 
 const DropCourse = catchAsync(async (req, res) => {
-  const enrollment = await EnrollmentService.dropCourse(req.params.enrollmentId,req.user.id);
+  const enrollment = await EnrollmentService.dropCourse(req.validated.params.enrollmentId,req.user.id);
   return ResponseHandler.success(res,"Course dropped successfully",enrollment);
 });
 

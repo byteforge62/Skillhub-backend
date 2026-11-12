@@ -10,26 +10,38 @@ const getOverview = async () => {
   // --- Stats ---
   const totalUsers = await User.countDocuments();
   const totalCourses = await Course.countDocuments();
-  const totalPublished = await Course.countDocuments({ isPublished: true });
-  const totalUnpublished = await Course.countDocuments({ isPublished: false });
+  const totalPublished = await Course.countDocuments({ status: "published" });
+  const totalUnpublished = await Course.countDocuments({
+    status: { $ne: "published" },
+  });
   const totalEnrollments = await Enrollment.countDocuments();
   const totalCertificates = await Certificate.countDocuments();
   const totalPosts = await Post.countDocuments();
   const totalCommunities = await Community.countDocuments();
 
   // --- Latest 5 Users & Courses ---
-  const latestUsers = await User.find().sort({ createdAt: -1 }).limit(5);
-  const latestCourses = await Course.find().sort({ createdAt: -1 }).limit(5);
+  const latestUsers = await User.find()
+    .select("fullname email role createdAt")
+    .sort({ createdAt: -1 })
+    .limit(5);
+  const latestCourses = await Course.find()
+    .select("title status createdAt createdBy")
+    .populate("createdBy", "fullname")
+    .sort({ createdAt: -1 })
+    .limit(5);
 
   // --- Enrollment trends (group by month) ---
   const enrollmentTrends = await Enrollment.aggregate([
     {
       $group: {
-        _id: { $month: "$createdAt" },
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" },
+        },
         count: { $sum: 1 },
       },
     },
-    { $sort: { "_id": 1 } },
+    { $sort: { "_id.year": 1, "_id.month": 1 } },
   ]);
 
   const monthNames = [
@@ -37,7 +49,7 @@ const getOverview = async () => {
     "Jul","Aug","Sep","Oct","Nov","Dec"
   ];
   const formattedTrends = enrollmentTrends.map((item) => ({
-    month: monthNames[item._id - 1],
+    month: `${monthNames[item._id.month - 1]} ${item._id.year}`,
     count: item.count,
   }));
 
@@ -46,26 +58,6 @@ const getOverview = async () => {
     .populate("reporter", "fullname email")
     .sort({ createdAt: -1 })
     .limit(5);
-
-  // --- Revenue (sum enrollments * course price) ---
-  const revenueAgg = await Enrollment.aggregate([
-    {
-      $lookup: {
-        from: "courses",
-        localField: "course",
-        foreignField: "_id",
-        as: "courseDetails",
-      },
-    },
-    { $unwind: "$courseDetails" },
-    {
-      $group: {
-        _id: null,
-        totalRevenue: { $sum: "$courseDetails.price" },
-      },
-    },
-  ]);
-  const totalRevenue = revenueAgg[0]?.totalRevenue || 0;
 
   // --- Active Users (last 7 days) ---
   const sevenDaysAgo = new Date();
@@ -78,7 +70,7 @@ const getOverview = async () => {
   const topCoursesAgg = await Enrollment.aggregate([
     {
       $group: {
-        _id: "$course",
+        _id: "$courseId",
         count: { $sum: 1 },
       },
     },
@@ -110,7 +102,8 @@ const getOverview = async () => {
       totalCertificates,
       totalPosts,
       totalCommunities,
-      totalRevenue,
+      totalRevenue: 0,
+      revenueTrackingAvailable: false,
       activeUsers,
     },
     latestUsers,

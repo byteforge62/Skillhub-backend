@@ -1,4 +1,5 @@
 const { z } = require("zod");
+const { httpUrlSchema } = require("./common.validation");
 
 const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ID");
 
@@ -21,16 +22,9 @@ const createResourceSchema = z.object({
       required_error: "Resource type is required",
     }),
 
-    url: z
-      .string({ required_error: "Resource URL is required" })
-      .url("Invalid resource URL")
-      .trim(),
+    url: httpUrlSchema,
 
-    thumbnail: z
-      .string()
-      .url("Invalid thumbnail URL")
-      .optional()
-      .nullable(),
+    thumbnail: httpUrlSchema.nullable().optional(),
 
     category: objectIdSchema.optional().nullable(),
 
@@ -50,12 +44,8 @@ const updateResourceSchema = z.object({
       type: z
         .enum(["link", "document", "video", "repository"])
         .optional(),
-      url: z.string().url("Invalid resource URL").trim().optional(),
-      thumbnail: z
-        .string()
-        .url("Invalid thumbnail URL")
-        .optional()
-        .nullable(),
+      url: httpUrlSchema.optional(),
+      thumbnail: httpUrlSchema.nullable().optional(),
       category: objectIdSchema.optional().nullable(),
       tags: z
         .array(z.string().trim().min(1).max(50))

@@ -61,17 +61,30 @@ const LoginUser = catchAsync(async (req, res) => {
 });
 
 const UpdateUser = catchAsync(async (req, res) => {
-  const updatedUser = await UserService.updateUser(req.params.id, req.body);
+  const updatedUser = await UserService.updateUser(
+    req.validated.params.id,
+    req.validated.body,
+    req.user.id,
+  );
   return ResponseHandler.success(res, "User updated successfully", updatedUser);
 });
 
+const UploadAvatar = catchAsync(async (req, res) => {
+  const user = await UserService.uploadAvatar(req.user.id, req.file);
+  return ResponseHandler.success(res, "Avatar uploaded successfully", user);
+});
+
 const SearchUser = catchAsync(async (req, res) => {
-  const users = await UserService.searchUsers(req.query.q);
+  const users = await UserService.searchUsers(req.validated.query.q);
   return ResponseHandler.success(res,"Users fetched successfully",users);
 });
 
 const GetUserById = catchAsync(async (req, res) => {
-  const user = await UserService.getUserById(req.params.id);
+  const user = await UserService.getPublicProfile(
+    req.validated.params.id,
+    req.user.id,
+    req.user.role,
+  );
   return ResponseHandler.success(res, "User fetched successfully", user);
 });
 
@@ -132,6 +145,7 @@ module.exports = {
   LoginUser,
   GetUserById,
   UpdateUser,
+  UploadAvatar,
   SearchUser,
   DeleteUser,
   ChangePassword,

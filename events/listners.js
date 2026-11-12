@@ -4,9 +4,12 @@ const Notification = require("../models/NotificationModel")
 const Course = require("../models/CoursesModel")
  eventEmitter.on("ENROLLMENT_CREATED",async(payload)=>{
     const {userId,courseId} = payload
-    const course = await Course.findById(courseId).select("title")
-    const courseTitle = course.title
      try{
+      const course = await Course.findById(courseId).select("title")
+      if (!course) {
+       throw new Error(`Course ${courseId} not found for enrollment notification`)
+      }
+      const courseTitle = course.title
       await ActivityLog.create({
         userId,
         action:"ENROLLED",
@@ -21,9 +24,7 @@ const Course = require("../models/CoursesModel")
         read:false
       })
      }catch(err){
-     res.status(500).json({
-      message:err.message || "Internal server error"
-     })
+     console.error("Enrollment notification error:", err.message);
      }
  })
  eventEmitter.on("post-created",async(payload)=>{
@@ -43,9 +44,7 @@ const Course = require("../models/CoursesModel")
       read:false
     })
   }catch(err){
-   res.status(500).json({
-    message:err.message || "Internal server error"
-   })
+   console.error("Post notification error (created):", err.message);
   }
  })
  eventEmitter.on("post-Liked", async ({ post, likedBy }) => {

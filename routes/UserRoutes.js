@@ -9,6 +9,12 @@ const resetPasswordSchema = require("../validations/auth/resetPasswordSchema");
 const resendVerificationSchema = require("../validations/auth/resendVerificationSchema")
 const validate = require("../middleware/validate");
 const rateLimiter = require("../middleware/rateLimiter");
+const uploadAvatar = require("../middleware/avatarUpload");
+const {
+  updateUserSchema,
+  userIdParamsSchema,
+  userSearchQuerySchema,
+} = require("../validations/user.validation");
 
 // public routes
 route.post("/verify-email",rateLimiter.verifyOtpLimiter,validate(verifyEmailSchema), UserController.verifyEmail);
@@ -21,11 +27,37 @@ route.post("/verify-reset-otp",rateLimiter.verifyOtpLimiter,validate(verifyReset
 route.post("/reset-password",rateLimiter.resetPasswordLimiter,validate(resetPasswordSchema),UserController.resetPassword);
 
 // protected routes
-route.get("/users",authMiddleware.verifyToken, UserController.GetAllUsers);
-route.get("/user/search",authMiddleware.verifyToken,UserController.SearchUser)
+route.get(
+  "/users",
+  authMiddleware.verifyToken,
+  authMiddleware.isAdmin,
+  UserController.GetAllUsers,
+);
+route.get(
+  "/user/search",
+  authMiddleware.verifyToken,
+  validate(userSearchQuerySchema),
+  UserController.SearchUser,
+)
 route.get("/user/me",authMiddleware.verifyToken,UserController.GetCurrentUser);
-route.get("/user/:id",authMiddleware.verifyToken,UserController.GetUserById)
-route.put("/user/:id",authMiddleware.verifyToken,UserController.UpdateUser)
+route.post(
+  "/user/me/avatar",
+  authMiddleware.verifyToken,
+  uploadAvatar,
+  UserController.UploadAvatar,
+);
+route.get(
+  "/user/:id",
+  authMiddleware.verifyToken,
+  validate(userIdParamsSchema),
+  UserController.GetUserById,
+)
+route.put(
+  "/user/:id",
+  authMiddleware.verifyToken,
+  validate(updateUserSchema),
+  UserController.UpdateUser,
+)
 route.post("/user/:userId/change-password",authMiddleware.verifyToken,UserController.ChangePassword);
 // admin routes
 route.delete("/user/:id",authMiddleware.verifyToken,authMiddleware.isAdmin,UserController.DeleteUser)

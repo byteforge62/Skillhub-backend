@@ -1,8 +1,43 @@
 const MessagesModel = require("../models/MessagesModel");
+const UserModel = require("../models/UserModel");
 const { getIO } = require("../socket");
 const AppError = require("../utils/AppError");
 
-const sendMessage = async ({ senderId, receiverId, text, replyTo }) => {
+const idOf = (value) => String(value?._id ?? value);
+
+const requireParticipant = (message, userId) => {
+  if (
+    idOf(message.senderId) !== String(userId) &&
+    idOf(message.receiverId) !== String(userId)
+  ) {
+    throw new AppError("Not authorized to access this message", 403);
+  }
+};
+
+const sendMessage = async (senderId, { receiverId, text, replyTo }) => {
+  if (String(senderId) === String(receiverId)) {
+    throw new AppError("You cannot send a message to yourself", 400);
+  }
+  const receiver = await UserModel.findById(receiverId).select("_id");
+  if (!receiver) {
+    throw new AppError("Recipient not found", 404);
+  }
+
+  if (replyTo) {
+    const parent = await MessagesModel.findById(replyTo);
+    if (!parent) {
+      throw new AppError("Message to reply to was not found", 404);
+    }
+    requireParticipant(parent, senderId);
+    const otherParticipant =
+      idOf(parent.senderId) === String(senderId)
+        ? idOf(parent.receiverId)
+        : idOf(parent.senderId);
+    if (otherParticipant !== String(receiverId)) {
+      throw new AppError("Reply recipient must match the conversation", 403);
+    }
+  }
+
   const message = await MessagesModel.create({
     senderId,
     receiverId,
@@ -63,9 +98,10 @@ const addReaction = async (messageId, userId, emoji) => {
   if (!message) {
     throw new AppError("Message not found", 404);
   }
+  requireParticipant(message, userId);
 
   const existingReaction = message.reactions.findIndex(
-    (reaction) => reaction.userId.toString() === userId,
+    (reaction) => idOf(reaction.userId) === String(userId),
   );
 
   if (existingReaction >= 0) {
@@ -97,7 +133,17 @@ const addReaction = async (messageId, userId, emoji) => {
   return message;
 };
 
-const replyToMessage = async (messageId, senderId, receiverId, text) => {
+const replyToMessage = async (messageId, senderId, text) => {
+  const parent = await MessagesModel.findById(messageId);
+  if (!parent) {
+    throw new AppError("Message to reply to was not found", 404);
+  }
+  requireParticipant(parent, senderId);
+  const receiverId =
+    idOf(parent.senderId) === String(senderId)
+      ? idOf(parent.receiverId)
+      : idOf(parent.senderId);
+
   const reply = await MessagesModel.create({
     senderId,
     receiverId,
@@ -118,16 +164,18 @@ const replyToMessage = async (messageId, senderId, receiverId, text) => {
   return populatedReply;
 };
 
-const deleteMessage = async (messageId) => {
+const deleteMessage = async (messageId, userId) => {
   const message = await MessagesModel.findById(messageId);
 
   if (!message) {
     throw new AppError("Message not found", 404);
   }
+  if (idOf(message.senderId) !== String(userId)) {
+    throw new AppError("Only the sender can delete this message", 403);
+  }
 
-  const senderId = message.senderId.toString();
-
-  const receiverId = message.receiverId.toString();
+  const senderId = idOf(message.senderId);
+  const receiverId = idOf(message.receiverId);
 
   await MessagesModel.findByIdAndDelete(messageId);
 
@@ -138,11 +186,14 @@ const deleteMessage = async (messageId) => {
   });
 };
 
-const editMessage = async (messageId, text) => {
+const editMessage = async (messageId, userId, text) => {
   let message = await MessagesModel.findById(messageId);
 
   if (!message) {
     throw new AppError("Message not found", 404);
+  }
+  if (idOf(message.senderId) !== String(userId)) {
+    throw new AppError("Only the sender can edit this message", 403);
   }
 
   message.text = text;

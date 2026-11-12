@@ -1,6 +1,7 @@
 const EnrollmentModel = require("../models/EnrollmentModel");
 const CourseModel = require("../models/CoursesModel");
 const LessonModel = require("../models/LessonModel");
+const CourseSectionModel = require("../models/CourseSectionModel");
 const AppError = require("../utils/AppError");
 
 const verifyCourseForEnrollment = async (courseId) => {
@@ -89,45 +90,78 @@ const completeLesson = async (enrollmentId,lessonId,userId) => {
     throw new AppError("Enrollment not found", 404);
   }
 
-  if (enrollment.status !== "active") {
-    throw new AppError("This enrollment is no longer active",400);
-  }
-
   const lesson = await LessonModel.findById(lessonId).select("_id section status");
   if (!lesson) {
     throw new AppError("Lesson not found", 404);
+  }
+
+  const courseSections = await CourseSectionModel.find({
+    course: enrollment.courseId,
+  }).select("_id");
+  const sectionIds = courseSections.map((section) => section._id.toString());
+
+  if (!sectionIds.includes(lesson.section.toString())) {
+    throw new AppError("Lesson not found in this course", 404);
+  }
+
+  if (enrollment.status !== "active") {
+    if (
+      enrollment.status === "completed" &&
+      enrollment.completedLessons.some(
+        (completedLessonId) =>
+          completedLessonId.toString() === lessonId.toString(),
+      )
+    ) {
+      return enrollment;
+    }
+
+    throw new AppError("This enrollment is no longer active", 400);
   }
 
   if (lesson.status !== "published") {
     throw new AppError("You cannot complete an unpublished lesson",400);
   }
 
-  const alreadyCompleted = enrollment.completedLessons.some((completedLessonId) => completedLessonId.toString() === lessonId.toString());
+  const alreadyCompleted = enrollment.completedLessons.some(
+    (completedLessonId) =>
+      completedLessonId.toString() === lessonId.toString(),
+  );
   if (!alreadyCompleted) {
-    enrollment.completedLessons.push(lessonId);
+    if (typeof enrollment.completedLessons.addToSet === "function") {
+      enrollment.completedLessons.addToSet(lessonId);
+    } else {
+      enrollment.completedLessons.push(lessonId);
+    }
   }
 
-  const CourseSectionModel = require("../models/CourseSectionModel");
-
-  const courseSections = await CourseSectionModel.find({course: enrollment.courseId,}).select("_id");
-
-  const sectionIds = courseSections.map((section) => section._id);
-
-  const totalLessons = await LessonModel.countDocuments({
+  const publishedLessons = await LessonModel.find({
     section: { $in: sectionIds },
     status: "published",
-  });
+  }).select("_id");
+  const publishedLessonIds = new Set(
+    publishedLessons.map((publishedLesson) =>
+      publishedLesson._id.toString(),
+    ),
+  );
+  const completedLessonIds = new Set(
+    enrollment.completedLessons
+      .map((completedLessonId) => completedLessonId.toString())
+      .filter((completedLessonId) => publishedLessonIds.has(completedLessonId)),
+  );
+  const totalLessons = publishedLessonIds.size;
 
   if (totalLessons === 0) {
     enrollment.progress = 0;
   } else {
-    enrollment.progress = Math.min(100,Math.round((enrollment.completedLessons.length / totalLessons) * 100));
+    enrollment.progress = Math.round(
+      (completedLessonIds.size / totalLessons) * 100,
+    );
   }
 
-  if (totalLessons > 0 && enrollment.completedLessons.length >= totalLessons) {
+  if (totalLessons > 0 && completedLessonIds.size === totalLessons) {
     enrollment.progress = 100;
     enrollment.status = "completed";
-    enrollment.completedAt = new Date();
+    enrollment.completedAt ||= new Date();
   }
 
   await enrollment.save();

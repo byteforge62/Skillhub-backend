@@ -11,9 +11,12 @@ const getNotificationsForUser = async (userId) => {
   return notifications;
 };
 
-const markAsRead = async (notificationId) => {
-  const notification = await NotificationModel.findByIdAndUpdate(
-    notificationId,
+const markAsRead = async (notificationId, userId) => {
+  const notification = await NotificationModel.findOneAndUpdate(
+    {
+      _id: notificationId,
+      userId,
+    },
     {
       read: true,
     },

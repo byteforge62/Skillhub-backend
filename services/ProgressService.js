@@ -15,28 +15,11 @@ const toObjectId = (value, fieldName) => {
   return new mongoose.Types.ObjectId(value);
 };
 
-const normalizeAnswers = (quizAnswers) => {
-  const answers = {};
-
-  if (quizAnswers && typeof quizAnswers === "object") {
-    for (const [key, value] of Object.entries(quizAnswers)) {
-      answers[key] = typeof value === "string" ? value : String(value);
-    }
-  }
-
-  return answers;
-};
-
-const saveProgress = async (progressData) => {
-  const userId = toObjectId(progressData.userId, "userId");
-
+const saveProgress = async (userIdValue, progressData) => {
+  const userId = toObjectId(userIdValue, "userId");
   const courseId = toObjectId(progressData.courseId, "courseId");
-
-  const currentQuestionIdx = Number(progressData.currentQuestionIdx || 0);
-
-  const points = Number(progressData.points || 0);
-
-  const quizAnswers = normalizeAnswers(progressData.quizAnswers || {});
+  const currentQuestionIdx = progressData.currentQuestionIdx;
+  const quizAnswers = progressData.quizAnswers;
 
   const progress = await ProgressModel.findOneAndUpdate(
     {
@@ -46,8 +29,10 @@ const saveProgress = async (progressData) => {
     {
       $set: {
         currentQuestionIdx,
-        points,
         quizAnswers,
+      },
+      $setOnInsert: {
+        points: 0,
       },
     },
     {

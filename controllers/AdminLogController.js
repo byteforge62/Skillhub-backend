@@ -3,7 +3,10 @@ const catchAsync = require("../utils/catchAsync");
 const ResponseHandler = require("../utils/ResponseHandler");
 
 const AddAdminLog = catchAsync(async (req, res) => {
-    const addedAdminLog = await AdminLogService.addAdminLog(req.body);
+    const addedAdminLog = await AdminLogService.addAdminLog(
+        req.user.id,
+        req.validated.body,
+    );
     return ResponseHandler.success(res,"Admin Log Added Successfully",addedAdminLog,201);
 });
 

@@ -1,8 +1,11 @@
 const AdminLogModel = require("../models/AdminLogModel");
-const AppError = require("../utils/AppError");
 
-const addAdminLog = async (logData) => {
-    const addedAdminLog = await AdminLogModel.create(logData);
+const addAdminLog = async (adminId, logData) => {
+    const addedAdminLog = await AdminLogModel.create({
+        adminId,
+        action: logData.action,
+        details: logData.details,
+    });
     return addedAdminLog;
 };
 

@@ -18,8 +18,13 @@ const EventSchema = Schema({
             required:[true, "Event location is required"]
         },
         hostId:{
-            type:Schema.Types.ObjectId,
-            ref:"User"
+                type:Schema.Types.ObjectId,
+                ref:"User"
+            },
+        status:{
+            type:String,
+            enum:["draft","published","cancelled"],
+            default:"draft"
         },
         banner:{
             type:String,
@@ -32,4 +37,8 @@ const EventSchema = Schema({
 },{
     timestamps:true
 })
+
+EventSchema.index({ status: 1, date: 1 });
+EventSchema.index({ hostId: 1, date: 1 });
+
 module.exports = mongoose.model("Event",EventSchema)

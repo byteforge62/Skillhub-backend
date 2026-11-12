@@ -28,7 +28,22 @@ const updateEnrollmentSchema = z.object({
     }),
 });
 
+const enrollmentIdParamsSchema = z.object({
+  params: z.object({
+    enrollmentId: objectIdSchema,
+  }),
+});
+
+const completeLessonParamsSchema = z.object({
+  params: z.object({
+    enrollmentId: objectIdSchema,
+    lessonId: objectIdSchema,
+  }),
+});
+
 module.exports = {
   createEnrollmentSchema,
   updateEnrollmentSchema,
+  enrollmentIdParamsSchema,
+  completeLessonParamsSchema,
 };

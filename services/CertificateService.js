@@ -1,8 +1,11 @@
 const CertificateModel = require("../models/CertificatesModel");
 
 const addCertificate = async (certificateData) => {
-    const addedCertificate = await CertificateModel.create(certificateData);
-    return addedCertificate;
+    return CertificateModel.create({
+        userId: certificateData.userId,
+        courseId: certificateData.courseId,
+        certificateUrl: certificateData.certificateUrl,
+    });
 };
 
 const getCertificatesByUserId = async (userId) => {
