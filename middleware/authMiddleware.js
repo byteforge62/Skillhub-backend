@@ -1,31 +1,46 @@
-const jwt = require("jsonwebtoken");
+const { verifyAccessToken } = require("../utils/jwt");
 
 const verifyToken = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader)
-    return res.status(401).json({ message: "No token provided" });
+  const authHeader = req.headers.authorization;
 
-  const token = authHeader.split(" ")[1]; // Expect "Bearer <token>"
-  if (!token) return res.status(401).json({ message: "Invalid token format" });
+  if (!authHeader) {
+    return res.status(401).json({
+      message: "No token provided",
+    });
+  }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err)
-      return res.status(403).json({ message: "Invalid or expired token" });
-    req.user = decoded; // Save user payload (id, email, role)
+  const [scheme, token] = authHeader.split(" ");
+
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({
+      message: "Invalid token format",
+    });
+  }
+
+  try {
+    const decoded = verifyAccessToken(token);
+
+    req.user = decoded;
+
     next();
-  });
+  } catch (error) {
+    return res.status(403).json({
+      message: "Invalid or expired token",
+    });
+  }
 };
-
-// Restrict to admins only
 
 const isAdmin = (req, res, next) => {
   if (req.user.role !== "admin") {
-    return res.status({
-      message: "Access Denied ,Admins Only",
+    return res.status(403).json({
+      message: "Access Denied, Admins Only",
     });
   }
+
   next();
 };
 
-
-module.exports = {verifyToken,isAdmin}
+module.exports = {
+  verifyToken,
+  isAdmin,
+};

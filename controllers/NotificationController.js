@@ -1,30 +1,39 @@
-const NotificationModel = require("../models/NotificationsModel");
-const AllNotificationForUser = async (req, res) => {
-  try {
-    const notifications = await NotificationModel.find({ userId: req.params.userId })
-      .sort({ createdAt: -1 });
-    res.status(200).json({ success: true, data: notifications });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+const NotificationService = require("../services/NotificationService");
+const catchAsync = require("../utils/catchAsync");
+const ResponseHandler = require("../utils/ResponseHandler");
+const AppError = require("../utils/AppError");
+
+const sameId = (left, right) =>
+  String(left).toLowerCase() === String(right).toLowerCase();
+
+const AllNotificationForUser = catchAsync(async (req, res) => {
+  if (!sameId(req.validated.params.userId, req.user.id)) {
+    throw new AppError("Not authorized to view these notifications", 403);
   }
-};
-const ReadMessage = async (req, res) => {
-  try {
-    const ReadedMessage = await NotificationModel.findByIdAndUpdate(
-      req.params.id,
-      { read: true },
-      { new: true }
-    );
-    res.status(200).json({
-      message: "Message Readed Successfully",
-      data: ReadedMessage,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message || "Internal Server Error",
-    });
-  }
-};
+  const notifications = await NotificationService.getNotificationsForUser(
+    req.user.id,
+  );
+
+  return ResponseHandler.success(
+    res,
+    "Notifications fetched successfully",
+    notifications,
+  );
+});
+
+const ReadMessage = catchAsync(async (req, res) => {
+  const notification = await NotificationService.markAsRead(
+    req.validated.params.id,
+    req.user.id,
+  );
+
+  return ResponseHandler.success(
+    res,
+    "Notification marked as read",
+    notification,
+  );
+});
+
 module.exports = {
   AllNotificationForUser,
   ReadMessage,

@@ -1,118 +1,57 @@
-const ReportModel = require("../models/ReportModel");
+const ReportService = require("../services/ReportService");
+const catchAsync = require("../utils/catchAsync");
+const ResponseHandler = require("../utils/ResponseHandler");
 
-// Add new report
-const AddReport = async (req, res) => {
-  try {
-    const { reporter, type, description, targetType, targetId } = req.body;
+const AddReport = catchAsync(async (req, res) => {
+  const report = await ReportService.addReport(
+    req.user.id,
+    req.validated.body,
+  );
 
-    if (!reporter || !type || !targetType || !targetId) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
+  return ResponseHandler.success(
+    res,
+    "Report submitted successfully",
+    report,
+    201,
+  );
+});
 
-    const report = await ReportModel.create({
-      reporter,
-      type,
-      description,
-      targetType,
-      targetId,
-    });
+const GetReports = catchAsync(async (req, res) => {
+  const reports = await ReportService.getReports(req.validated.query);
 
-    res.status(201).json({ success: true, data: report });
-  } catch (error) {
-    console.error("Error creating report:", error.message);
-    res.status(500).json({ message: "Server Error", error: error.message });
-  }
-};
+  return ResponseHandler.success(res, "Reports fetched successfully", reports);
+});
 
-// Get all reports (with filters)
-const GetReports = async (req, res) => {
-  try {
-    const { status, type } = req.query;
-    const filter = {};
-    if (status) filter.status = status;
-    if (type) filter.type = type;
+const UpdateReportStatus = catchAsync(async (req, res) => {
+  const report = await ReportService.updateReportStatus(
+    req.validated.params.id,
+    req.validated.body.status,
+    req.user.id,
+  );
 
-    const reports = await ReportModel.find(filter)
-      .populate("reporter", "fullname email")
-      .populate("targetId", "title fullname") // course title or user fullname
-      .sort({ createdAt: -1 });
+  return ResponseHandler.success(
+    res,
+    "Report status updated successfully",
+    report,
+  );
+});
 
-    res.status(200).json({
-      totalReports: reports.length,
-      reports,
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message || "Internal Server Error" });
-  }
-};
+const GetReportById = catchAsync(async (req, res) => {
+  const report = await ReportService.getReportById(req.validated.params.id);
 
-// Update report status (admin only)
-const UpdateReportStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, resolvedBy } = req.body;
+  return ResponseHandler.success(res, "Report fetched successfully", report);
+});
 
-    const updated = await ReportModel.findByIdAndUpdate(
-      id,
-      { status, resolvedBy },
-      { new: true }
-    );
+const DeleteReport = catchAsync(async (req, res) => {
+  await ReportService.deleteReport(req.validated.params.id);
 
-    if (!updated) {
-      return res.status(404).json({ message: "Report not found" });
-    }
+  return ResponseHandler.success(res, "Report deleted successfully");
+});
 
-    res.status(200).json({
-      message: "Report status updated",
-      data: updated,
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message || "Internal Server Error" });
-  }
-};
-const GetReportById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const Report = await ReportModel.findById(id)
-      .populate("reporter", "fullname email")
-      .populate("targetId", "title fullname");
-    if (!Report) {
-      return res.status(404).json({
-        message: "Report Not Found",
-      });
-    }
-    res.status(200).json({
-      message: "Report Found Successfully",
-      report: Report,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message,
-    });
-  }
-};
-const DeleteReport = async (req,res) => {
-  try{
-   const {id} = req.params;
-   const DeletedReport = await ReportModel.findByIdAndDelete(id)
-   if(!DeleteReport){
-    return res.status(404).json({
-      message:"Report Not Found"
-    })
-   }
-   res.status(200).json({
-    message:"Report Deleted SuccessFully"
-   })
-  }catch(err){
-  res.status(500).json({
-    message:err.message
-  })
-  }
-}
 module.exports = {
   AddReport,
   GetReports,
   UpdateReportStatus,
   GetReportById,
-  DeleteReport
+  DeleteReport,
 };

@@ -1,7 +1,8 @@
 const { Server } = require("socket.io");
-const jwt = require("jsonwebtoken");
-const MessageModel = require("./models/MessagesModel");
+const mongoose = require("mongoose");
+const MessagesModel = require("./models/MessagesModel");
 const User = require("./models/UserModel");
+const { verifyAccessToken } = require("./utils/jwt");
 
 let io = null;
 const connectedUsers = new Map(); // userId -> socketId
@@ -27,9 +28,12 @@ const initializeSocket = (httpServer) => {
         return next(new Error("Authentication error: Token required"));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = verifyAccessToken(token);
       socket.userId = decoded.id || decoded._id || decoded.userId;
       socket.user = await User.findById(socket.userId).select("fullname name email avatar");
+      if (!socket.userId || !socket.user) {
+        return next(new Error("Authentication error: User not found"));
+      }
       
       next();
     } catch (err) {
@@ -53,17 +57,55 @@ const initializeSocket = (httpServer) => {
     // ===============================
     // MESSAGE EVENTS
     // ===============================
+    const isValidId = (id) => mongoose.Types.ObjectId.isValid(String(id || ""));
+    const isParticipant = (message, userId) =>
+      message.senderId.toString() === userId.toString() ||
+      message.receiverId.toString() === userId.toString();
+    const emitValidationError = (message, tempId) =>
+      socket.emit("error", { message, tempId });
     
     socket.on("send_message", async (data) => {
       try {
         const { tempId, receiverId, text, replyTo } = data;
         const senderId = socket.userId;
+        if (
+          !isValidId(receiverId) ||
+          receiverId.toString() === senderId.toString() ||
+          typeof text !== "string" ||
+          !text.trim() ||
+          text.length > 5000
+        ) {
+          return emitValidationError("Invalid message data", tempId);
+        }
+        const receiver = await User.findById(receiverId).select("_id");
+        if (!receiver) {
+          return emitValidationError("Recipient not found", tempId);
+        }
+        if (replyTo) {
+          if (!isValidId(replyTo)) {
+            return emitValidationError("Invalid reply target", tempId);
+          }
+          const parent = await MessagesModel.findById(replyTo);
+          if (!parent || !isParticipant(parent, senderId)) {
+            return emitValidationError("Reply target not found", tempId);
+          }
+          const otherParticipant =
+            parent.senderId.toString() === senderId.toString()
+              ? parent.receiverId.toString()
+              : parent.senderId.toString();
+          if (otherParticipant !== receiverId.toString()) {
+            return emitValidationError(
+              "Reply recipient must match the conversation",
+              tempId,
+            );
+          }
+        }
 
         // Save message to database
         const message = await MessagesModel.create({
           senderId,
           receiverId,
-          text,
+          text: text.trim(),
           replyTo: replyTo || null,
           read: false
         });
@@ -95,20 +137,26 @@ const initializeSocket = (httpServer) => {
 
       } catch (err) {
         console.error("Send message error:", err);
-        socket.emit("error", { message: "Failed to send message", tempId: data.tempId });
+        socket.emit("error", {
+          message: "Failed to send message",
+          tempId: data && data.tempId,
+        });
       }
     });
 
     socket.on("edit_message", async (data) => {
       try {
-        const { messageId, text, receiverId } = data;
+        const { messageId, text } = data;
+        if (!isValidId(messageId) || typeof text !== "string" || !text.trim() || text.length > 5000) {
+          return emitValidationError("Invalid message data");
+        }
         
         let message = await MessagesModel.findById(messageId);
         if (!message || message.senderId.toString() !== socket.userId.toString()) {
-          return socket.emit("error", { message: "Unauthorized or message not found" });
+          return emitValidationError("Unauthorized or message not found");
         }
 
-        message.text = text;
+        message.text = text.trim();
         message.isEdited = true;
         await message.save();
 
@@ -118,7 +166,7 @@ const initializeSocket = (httpServer) => {
           .populate("reactions.userId", "fullname");
 
         // Notify both sender and receiver
-        io.to([socket.userId.toString(), receiverId.toString()]).emit("message_edited", {
+        io.to([socket.userId.toString(), message.receiverId.toString()]).emit("message_edited", {
           message: populatedMessage
         });
 
@@ -130,13 +178,17 @@ const initializeSocket = (httpServer) => {
 
     socket.on("delete_message", async (data) => {
       try {
-        const { messageId, receiverId } = data;
+        const { messageId } = data;
+        if (!isValidId(messageId)) {
+          return emitValidationError("Invalid message ID");
+        }
         
         const message = await MessagesModel.findById(messageId);
         if (!message || message.senderId.toString() !== socket.userId.toString()) {
-          return socket.emit("error", { message: "Unauthorized or message not found" });
+          return emitValidationError("Unauthorized or message not found");
         }
 
+        const receiverId = message.receiverId.toString();
         await MessagesModel.findByIdAndDelete(messageId);
 
         // Notify both users
@@ -154,10 +206,21 @@ const initializeSocket = (httpServer) => {
       try {
         const { messageId, emoji } = data;
         const userId = socket.userId;
+        if (
+          !isValidId(messageId) ||
+          typeof emoji !== "string" ||
+          !emoji.trim() ||
+          emoji.length > 32
+        ) {
+          return emitValidationError("Invalid reaction data");
+        }
 
         let message = await MessagesModel.findById(messageId);
         if (!message) {
           return socket.emit("error", { message: "Message not found" });
+        }
+        if (!isParticipant(message, userId)) {
+          return emitValidationError("Not authorized to react to this message");
         }
 
         const existingIndex = message.reactions.findIndex(
@@ -215,9 +278,12 @@ const initializeSocket = (httpServer) => {
     socket.on("mark_read", async (data) => {
       try {
         const { messageId } = data;
+        if (!isValidId(messageId)) {
+          return emitValidationError("Invalid message ID");
+        }
         
-        const message = await MessagesModel.findByIdAndUpdate(
-          messageId,
+        const message = await MessagesModel.findOneAndUpdate(
+          { _id: messageId, receiverId: socket.userId, read: false },
           { read: true },
           { new: true }
         );
@@ -237,15 +303,20 @@ const initializeSocket = (httpServer) => {
     socket.on("mark_all_read", async (data) => {
       try {
         const { senderId } = data;
+        if (!isValidId(senderId) || senderId.toString() === socket.userId.toString()) {
+          return emitValidationError("Invalid sender ID");
+        }
         
-        await MessagesModel.updateMany(
+        const result = await MessagesModel.updateMany(
           { senderId, receiverId: socket.userId, read: false },
           { read: true }
         );
 
-        io.to(senderId.toString()).emit("messages_read", {
-          by: socket.userId
-        });
+        if (result.modifiedCount > 0) {
+          io.to(senderId.toString()).emit("messages_read", {
+            by: socket.userId
+          });
+        }
       } catch (err) {
         console.error("Mark all read error:", err);
       }

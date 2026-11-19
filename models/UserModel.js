@@ -4,17 +4,29 @@ const UserSchema = Schema(
   {
     fullname: {
       type: String,
+      required: true,
+      trim: true,
     },
     email: {
       type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
     },
     password: {
       type: String,
+      required: true,
+      select: false,
     },
     role: {
       type: String,
-      enum: ["admin", "user"],
+      enum: ["admin", "instructor", "user"],
       default: "user",
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
     },
     avatar: {
       type: String,
@@ -26,32 +38,38 @@ const UserSchema = Schema(
     },
     github: {
       type: String,
-      default:""
+      default: "",
     },
     linkedin: {
       type: String,
-      default:""
+      default: "",
     },
     twitter: {
       type: String,
-      default:""
+      default: "",
     },
     isActive: {
       type: Boolean,
       default: true,
     },
-    points:{
-      type:Number,
-      default:0
+    tokenVersion: {
+      type: Number,
+      default:0,
     },
-    achievements:[{
-      type:Schema.Types.ObjectId,
-      ref:"Achievement",
-      default:[]
-    }]
+    points: {
+      type: Number,
+      default: 0,
+    },
+    achievements: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Achievement",
+        default: [],
+      },
+    ],
   },
   {
     timestamps: true,
-  }
+  },
 );
 module.exports = mongoose.model("User", UserSchema);

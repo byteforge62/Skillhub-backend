@@ -1,16 +1,11 @@
-const Activity = require("../models/ActivityLogModel");
-const ActivityByUserId = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const Activities = await Activity.find({ userId }).sort({ createdAt: -1 });
-    res.status(200).json({
-      message: "Activities fetched successfully",
-      data: Activities,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message || "Internal server error",
-    });
-  }
-};
-module.exports = {ActivityByUserId}
+const ActivityService = require("../services/ActivityService");
+const catchAsync = require("../utils/catchAsync");
+const ResponseHandler = require("../utils/ResponseHandler");
+
+const ActivityByUserId = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  const activities = await ActivityService.getActivitiesByUserId(userId);
+  return ResponseHandler.success(res, "Activities fetched successfully", activities, 200);
+});
+
+module.exports = { ActivityByUserId };

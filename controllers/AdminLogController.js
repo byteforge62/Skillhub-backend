@@ -1,37 +1,21 @@
-// controllers/AdminLogController.js
-const AdminLogModel = require("../models/AdminLogModel");
+const AdminLogService = require("../services/AdminLogService");
+const catchAsync = require("../utils/catchAsync");
+const ResponseHandler = require("../utils/ResponseHandler");
 
-// Add a new admin log
-const AddAdminLog = async (req, res) => {
-  try {
-    const AddedAdminLog = await AdminLogModel.create(req.body);
-    res.status(201).json({
-      message: "Admin Log Added Successfully",
-      data: AddedAdminLog,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message || "Internal Server Error",
-    });
-  }
-};
+const AddAdminLog = catchAsync(async (req, res) => {
+    const addedAdminLog = await AdminLogService.addAdminLog(
+        req.user.id,
+        req.validated.body,
+    );
+    return ResponseHandler.success(res,"Admin Log Added Successfully",addedAdminLog,201);
+});
 
-// Get latest admin logs
-const GetAdminLogs = async (req, res) => {
-  try {
-    const logs = await AdminLogModel.find()
-      .populate("adminId", "fullname email")
-      .sort({ createdAt: -1 })
-      .limit(20); // fetch last 20 actions
-    res.status(200).json({ logs });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message || "Internal Server Error",
-    });
-  }
-};
+const GetAdminLogs = catchAsync(async (req, res) => {
+    const logs = await AdminLogService.getAdminLogs();
+    return ResponseHandler.success(res,"Admin Logs fetched successfully",logs);
+});
 
 module.exports = {
-  AddAdminLog,
-  GetAdminLogs,
+    AddAdminLog,
+    GetAdminLogs,
 };

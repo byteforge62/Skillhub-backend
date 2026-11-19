@@ -1,182 +1,107 @@
-const Post = require("../models/PostModel");
-const eventEmitter = require("../events/EventEmitter");
-// Create a post
-const createPost = async (req, res) => {
-  try {
-    const { userId, communityId, content } = req.body;
-    const post = await Post.create({ userId, communityId, content });
-    eventEmitter.emit("post-cretaed", {
-      userId: post.userId,
-      postId: post._id,
-    });
-    res.status(201).json({ success: true, data: post });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+const PostService = require("../services/PostService");
+const catchAsync = require("../utils/catchAsync");
 
-// Get all posts
-const getPosts = async (req, res) => {
-  try {
-    const posts = await Post.find()
-      .populate("userId", "name email")
-      .populate("communityId", "name");
-    res.json({ success: true, data: posts });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+const createPost = catchAsync(async (req, res) => {
+  const post = await PostService.createPost(
+    req.user.id,
+    req.user.role,
+    req.validated.body,
+  );
+  return res.status(201).json({ success: true, data: post });
+});
 
-// Get single post
-const getPost = async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id)
-      .populate("userId", "name email")
-      .populate("comments.userId", "name email");
-    if (!post)
-      return res.status(404).json({ success: false, error: "Post not found" });
-    res.json({ success: true, data: post });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+const getPosts = catchAsync(async (req, res) => {
+  const result = await PostService.getPosts(req.validated.query);
+  return res.json({
+    success: true,
+    data: result.items,
+    meta: result.meta,
+  });
+});
 
-// Update post
-const updatePost = async (req, res) => {
-  try {
-    const post = await Post.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
-    res.json({ success: true, data: post });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+const getPost = catchAsync(async (req, res) => {
+  const post = await PostService.getPost(req.validated.params.id);
+  return res.json({ success: true, data: post });
+});
 
-// Delete post
-const deletePost = async (req, res) => {
-  try {
-    await Post.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: "Post deleted" });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+const updatePost = catchAsync(async (req, res) => {
+  const post = await PostService.updatePost(
+    req.validated.params.id,
+    req.user.id,
+    req.validated.body,
+  );
+  return res.json({ success: true, data: post });
+});
 
-// Like/unlike post
-const toggleLike = async (req, res) => {
-  try {
-    const { userId } = req.body;
-    const post = await Post.findById(req.params.id);
-    if (!post)
-      return res.status(404).json({ success: false, error: "Post not found" });
+const deletePost = catchAsync(async (req, res) => {
+  await PostService.deletePost(
+    req.validated.params.id,
+    req.user.id,
+    req.user.role,
+  );
+  return res.json({ success: true, message: "Post deleted" });
+});
 
-    const alreadyLiked = post.likes.includes(userId);
-    if (alreadyLiked) {
-      post.likes.pull(userId);
-    } else {
-      post.likes.push(userId);
-    }
-    await post.save();
-    eventEmitter.emit("post-Liked", { post, likedBy: userId });
+const toggleLike = catchAsync(async (req, res) => {
+  const post = await PostService.toggleLike(
+    req.validated.params.id,
+    req.user.id,
+  );
+  return res.json({ success: true, data: post });
+});
 
-    res.json({ success: true, data: post });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+const addComment = catchAsync(async (req, res) => {
+  const post = await PostService.addComment(
+    req.validated.params.id,
+    req.user.id,
+    req.validated.body.content,
+  );
+  return res.json({ success: true, data: post });
+});
 
-// Add comment
-const addComment = async (req, res) => {
-  try {
-    const { userId, content } = req.body;
-    const post = await Post.findById(req.params.id);
-    if (!post)
-      return res.status(404).json({ success: false, error: "Post not found" });
+const deleteComment = catchAsync(async (req, res) => {
+  const post = await PostService.deleteComment(
+    req.validated.params.commentId,
+    req.user.id,
+    req.user.role,
+  );
+  return res.json({ success: true, data: post });
+});
 
-    post.comments.push({ userId, content });
-    await post.save();
-    eventEmitter.emit("post-Commented", {
-      post,
-      comment: content,
-      commentedBy: userId,
-    });
+const getCommunityPosts = catchAsync(async (req, res) => {
+  const result = await PostService.getCommunityPosts(
+    req.validated.params.communityId,
+    req.validated.query,
+  );
+  return res.json({
+    success: true,
+    data: result.items,
+    meta: result.meta,
+  });
+});
 
-    await post.populate("comments.userId", "name email");
+const getUserPosts = catchAsync(async (req, res) => {
+  const result = await PostService.getPosts({
+    ...req.validated.query,
+    userId: req.validated.params.userId,
+  });
+  return res.json({
+    success: true,
+    data: result.items,
+    meta: result.meta,
+  });
+});
 
-    res.json({ success: true, data: post });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+const AddCommentReply = catchAsync(async (req, res) => {
+  const post = await PostService.addCommentReply(
+    req.validated.params.postId,
+    req.validated.params.commentId,
+    req.user.id,
+    req.validated.body.content,
+  );
+  return res.status(200).json({ success: true, data: post });
+});
 
-// Delete comment
-const deleteComment = async (req, res) => {
-  try {
-    const { commentId } = req.params;
-    const post = await Post.findOneAndUpdate(
-      { "comments._id": commentId },
-      { $pull: { comments: { _id: commentId } } },
-      { new: true }
-    );
-    res.json({ success: true, data: post });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-// Get posts by community
-const getCommunityPosts = async (req, res) => {
-  try {
-    const posts = await Post.find({ communityId: req.params.communityId })
-      .populate("userId", "fullname email")
-      .populate("comments.userId", "fullname email");
-    res.json({ success: true, data: posts });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-// Get posts by user
-const getUserPosts = async (req, res) => {
-  try {
-    const posts = await Post.find({ userId: req.params.userId })
-      .populate("communityId", "name")
-      .populate("comments.userId", "fullname email");
-    res.json({ success: true, data: posts });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-const AddCommentReply = async (req, res) => {
-  try {
-    const { userId, content } = req.body;
-    const post = await Post.findById(req.params.postId);
-    if (!post)
-      return res.status(404).json({
-        success: false,
-        error: "Post Not Found",
-      });
-    const comment = post.comments.id(req.params.commentId);
-    if (!comment) {
-      return res.status(404).json({
-        success: false,
-        error: "Comment Not Found",
-      });
-    }
-    comment.replies.push({ userId, content });
-    await post.save();
-    await post.populate("comments.userId", "fullname");
-    res.status(200).json({
-      success: true,
-      data: post,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message || "inter Server Error",
-    });
-  }
-};
 module.exports = {
   createPost,
   getPosts,
@@ -188,5 +113,5 @@ module.exports = {
   deleteComment,
   getCommunityPosts,
   getUserPosts,
-  AddCommentReply
+  AddCommentReply,
 };

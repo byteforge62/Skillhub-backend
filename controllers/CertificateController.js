@@ -1,31 +1,37 @@
-const CertificateModel = require("../models/CertificatesModel")
-const AddCertificate = async (req,res) => {
-    try{
-    const AddedCertificate = await CertificateModel.create(req.body)
-    res.status(200).json({
-        message:"Certificate Added Successfully",
-        data:AddedCertificate
-    })
-    }catch(err){
-     res.status(500).json({
-        message:err.message || "Internal Server Error"
-     })
-    }
-}
-const GetCertificatesByUserId = async (req,res) => {
-    try{
-   const Certificates = await CertificateModel.find({userId:req.params.userId})
-   res.status(200).json({
-    success:true,
-    data:Certificates
-   })
-    }catch(err){
-  res.status(500).json({
-    success:false,
-    message:err.message
-  })
-    }
-}
-module.exports={
-    AddCertificate,GetCertificatesByUserId
-}
+const CertificateService = require("../services/CertificateService");
+const catchAsync = require("../utils/catchAsync");
+const ResponseHandler = require("../utils/ResponseHandler");
+const AppError = require("../utils/AppError");
+
+const sameId = (left, right) =>
+  String(left).toLowerCase() === String(right).toLowerCase();
+
+const AddCertificate = catchAsync(async (req, res) => {
+  const certificate = await CertificateService.addCertificate(req.validated.body);
+  return ResponseHandler.success(
+    res,
+    "Certificate Added Successfully",
+    certificate,
+    201,
+  );
+});
+
+const GetCertificatesByUserId = catchAsync(async (req, res) => {
+  const { userId } = req.validated.params;
+  if (!sameId(userId, req.user.id) && req.user.role !== "admin") {
+    throw new AppError("Not authorized to view these certificates", 403);
+  }
+  const certificates = await CertificateService.getCertificatesByUserId(
+    userId,
+  );
+  return ResponseHandler.success(
+    res,
+    "Certificates fetched successfully",
+    certificates,
+  );
+});
+
+module.exports = {
+  AddCertificate,
+  GetCertificatesByUserId,
+};

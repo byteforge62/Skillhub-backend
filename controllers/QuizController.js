@@ -1,49 +1,50 @@
-const QuizModel = require("../models/QuizModel");
-const AddQuestion = async (req, res) => {
-  try {
-    const { courseId, question, options, points } = req.body;
-    if (!courseId || !question || !options || options.length !== 4) {
-      return res.status(400).json({
-        message: "CourseId, question and exactly 4 options are required",
-      });
-    }
+const QuizService = require("../services/QuizService");
 
-    // Ensure at least one correct option
-    const hasCorrect = options.some((opt) => opt.isCorrect === true);
-    if (!hasCorrect) {
-      return res.status(400).json({
-        message: "At least one option must be marked as correct",
-      });
-    }
+const catchAsync = require("../utils/catchAsync");
+const ResponseHandler = require("../utils/ResponseHandler");
 
-    const AddedQuestion = await QuizModel.create({
-      courseId,
-      question,
-      options,
-      points: points || 1, 
-    });
+const CreateQuiz = catchAsync(async (req, res) => {
+  const quiz = await QuizService.createQuiz(req.user.id,req.validated.body);
+  return ResponseHandler.success(res,"Quiz created successfully",quiz,201);
+});
 
-    res.status(201).json(AddedQuestion);
-  } catch (err) {
-    res.status(500).json({
-      message: err.message || "Internal Server Error",
-    });
-  }
-};
-const QuestionByCourseId = async (req, res) => {
-  try {
-    const Questions = await QuizModel.find({ courseId: req.params.courseId });
-    res.status(200).json({
-      message: "Questions Found Successfully",
-      data: Questions,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message,
-    });
-  }
-};
+const GetQuizzesByCourse = catchAsync(async (req, res) => {
+  const quizzes = await QuizService.getQuizzesByCourse(req.validated.params.courseId);
+  return ResponseHandler.success(res,"Quizzes fetched successfully",quizzes);
+});
+
+const GetQuizById = catchAsync(async (req, res) => {
+  const quiz = await QuizService.getQuizById(req.validated.params.quizId);
+  return ResponseHandler.success(res,"Quiz fetched successfully",quiz);
+});
+
+const GetMyQuizzes = catchAsync(async (req, res) => {
+  const quizzes = await QuizService.getMyQuizzes(req.user.id);
+
+  return ResponseHandler.success(res,"Your quizzes fetched successfully",quizzes);
+});
+
+const UpdateQuiz = catchAsync(async (req, res) => {
+  const quiz = await QuizService.updateQuiz(req.validated.params.quizId,req.user.id,req.validated.body);
+  return ResponseHandler.success(res,"Quiz updated successfully",quiz);
+});
+
+const PublishQuiz = catchAsync(async (req, res) => {
+  const quiz = await QuizService.publishQuiz(req.validated.params.quizId,req.user.id);
+  return ResponseHandler.success(res,"Quiz published successfully",quiz);
+});
+
+const DeleteQuiz = catchAsync(async (req, res) => {
+  await QuizService.deleteQuiz(req.validated.params.quizId,req.user.id);
+  return ResponseHandler.success(res,"Quiz deleted successfully",null);
+});
+
 module.exports = {
-  AddQuestion,
-  QuestionByCourseId,
+  CreateQuiz,
+  GetQuizzesByCourse,
+  GetQuizById,
+  GetMyQuizzes,
+  UpdateQuiz,
+  PublishQuiz,
+  DeleteQuiz,
 };
