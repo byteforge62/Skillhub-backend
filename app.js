@@ -33,7 +33,22 @@ const userSettingsRoutes = require("./routes/UserSettingsRoutes")
 const app = express();
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      process.env.CLIENT_URL,
+      "http://localhost:5173",
+      "http://localhost:3000"
+    ].filter(Boolean);
+    
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true
+}));
 
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
