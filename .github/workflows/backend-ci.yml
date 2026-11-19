@@ -3,40 +3,67 @@ name: SkillHub Backend CI/CD
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+# Cancel outdated runs on the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Set working directory if your backend lives in a subfolder (remove if backend is at repo root)
+defaults:
+  run:
+    working-directory: ./backend
 
 jobs:
   backend-ci-cd:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repository
+      # 1. Checkout repository
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      # Setup Node.js
+      # 2. Setup Node.js LTS
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 18
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
-      # Install dependencies
+      # 3. Clean install dependencies
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      # Run tests (with environment variables)
+      # 4. Run linter (only if script exists)
+      - name: Run linter
+        run: npm run lint --if-present
+
+      # 5. Run tests (with environment variables)
       - name: Run tests
-        run: npm test
+        run: npm test --if-present
         env:
+          NODE_ENV: test
           MONGO_URI: ${{ secrets.MONGO_URI }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
-      # Build step (only if backend has one)
+      # 6. Build project (only if backend has a build script)
       - name: Build project
         run: npm run build --if-present
 
-      # Deploy to Render (ONLY on push to main)
+      # 7. Deploy to Render (ONLY on direct push to main)
       - name: Deploy to Render
-        if: github.event_name == 'push'
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
