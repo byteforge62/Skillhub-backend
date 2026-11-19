@@ -1,35 +1,57 @@
-const mongoose = require("mongoose")
-const Schema = mongoose.Schema;
-const QuizSchema = Schema({
-    courseId:{
-        type:Schema.Types.ObjectId,
-        ref:"Course",
-        required:true
+const mongoose = require("mongoose");
+
+const { Schema } = mongoose;
+
+const QuizSchema = new Schema(
+  {
+    course: {
+      type: Schema.Types.ObjectId,
+      ref: "Course",
+      required: true,
+      index: true,
     },
-    question:{
-        type:String,
-        required:true
+
+    title: {
+      type: String,
+      required: [true, "Quiz title is required"],
+      trim: true,
+      minlength: 3,
+      maxlength: 200,
     },
-    options:[
-        {
-            text:{
-                type:String,
-                required:true
-            },
-            isCorrect:{
-                type:Boolean,
-                required:true
-            },
-            explanation:{
-                type:String
-            }
-        }
-    ],
-    points:{
-        type:Number,
-        default:1
-    }
-},{
-    timestamps:true
-})
-module.exports = mongoose.model("Quiz",QuizSchema)
+
+    description: {
+      type: String,
+      trim: true,
+      maxlength: 1000,
+      default: "",
+    },
+
+    passingScore: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 60,
+    },
+
+    status: {
+      type: String,
+      enum: ["draft", "published"],
+      default: "draft",
+      index: true,
+    },
+
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+QuizSchema.index({ course: 1, createdAt: -1 });
+
+module.exports = mongoose.model("Quiz", QuizSchema);

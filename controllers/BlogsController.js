@@ -1,17 +1,12 @@
-const BlogsModel = require("../models/BlogsModel");
-const AddBlog = async (req, res) => {
-  try {
-    const AddedBlog = await BlogsModel.create(req.body);
-    res.status(200).json({
-      message: "Blog Added Successfully",
-      data: AddedBlog,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message || "Internal Server Error",
-    });
-  }
-};
+const BlogService = require("../services/BlogService");
+const catchAsync = require("../utils/catchAsync");
+const ResponseHandler = require("../utils/ResponseHandler");
+
+const AddBlog = catchAsync(async (req, res) => {
+    const addedBlog = await BlogService.addBlog(req.body);
+    return ResponseHandler.success(res,"Blog Added Successfully",addedBlog,201);
+});
+
 module.exports = {
-    AddBlog
-}
+    AddBlog,
+};

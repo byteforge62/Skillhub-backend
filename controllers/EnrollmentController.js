@@ -1,90 +1,39 @@
-const EnrollmentController = require("../models/EnrollmentModel");
-const Resource = require("../models/ResourcesModel");
-const eventEmitter = require("../events/EventEmitter");
-const AddEnrollment = async (req, res) => {
-  try {
-    const AddedEnrollment = await EnrollmentController.create(req.body);
-    eventEmitter.emit("ENROLLMENT_CREATED", {
-      userId: AddedEnrollment.userId,
-      courseId: AddedEnrollment.courseId,
-    });
-    res.status(200).json({
-      message: "User Enrolled Successfully",
-      data: AddedEnrollment,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message || "Internal Server Error",
-    });
-  }
-};
-const EnrollmentsByUserId = async (req, res) => {
-  try {
-    const Enrolls = await EnrollmentController.find({
-      userId: req.params.userId,
-    }).populate("courseId");
-    res.status(200).json({
-      message: "Enrolls For user Found Successfully",
-      data: Enrolls,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message,
-    });
-  }
-};
-const GetEnrollments = async (req, res) => {
-  try {
-    const Enrolls = await EnrollmentController.find().populate("courseId");
-    res.status(200).json({
-      message: "Enrolls Found Successfully",
-      data: Enrolls,
-    });
-  } catch (err) {
-    res.status(500).json({
-      message: err.message,
-    });
-  }
-};
-const MarkLessonComplete = async (req, res) => {
-try {
-    const { enrollmentId, lessonId } = req.params;
+const EnrollmentService = require("../services/EnrollmentService");
 
-    const enrollment = await EnrollmentController.findById(enrollmentId);
-    if (!enrollment) return res.status(404).json({ message: "Enrollment not found" });
+const catchAsync = require("../utils/catchAsync");
+const ResponseHandler = require("../utils/ResponseHandler");
 
-    // Add lesson if not already completed
-    if (!enrollment.completedLessons.includes(lessonId)) {
-      enrollment.completedLessons.push(lessonId);
+const EnrollInCourse = catchAsync(async (req, res) => {
+  const enrollment = await EnrollmentService.enrollInCourse(req.user.id,req.validated.body.courseId);
+  return ResponseHandler.success(res,"Course enrollment successful",enrollment,201);
+});
 
-      // Count lessons in this course
-      const totalLessons = await Resource.countDocuments({ courseId: enrollment.courseId });
-      const completed = enrollment.completedLessons.length;
+const GetMyEnrollments = catchAsync(async (req, res) => {
+  const enrollments = await EnrollmentService.getMyEnrollments(req.user.id);
+  return ResponseHandler.success(res,"Your enrollments fetched successfully",enrollments);
+});
 
-      // Update progress field
-      enrollment.progress =
-        totalLessons > 0 ? Math.round((completed / totalLessons) * 100) : 0;
+const GetMyEnrollmentById = catchAsync(async (req, res) => {
+  const enrollment =
+    await EnrollmentService.getMyEnrollmentById(req.validated.params.enrollmentId,req.user.id);
+    return ResponseHandler.success(res,"Enrollment fetched successfully",enrollment);
+});
 
-      // Auto-mark status if finished
-      if (enrollment.progress === 100) {
-        enrollment.status = "completed";
-      }
+const CompleteLesson = catchAsync(async (req, res) => {
+  const { enrollmentId, lessonId } = req.validated.params;
+  const enrollment = await EnrollmentService.completeLesson(enrollmentId,lessonId,req.user.id);
+  return ResponseHandler.success(res,"Lesson marked as completed",enrollment);
+});
 
-      await enrollment.save();
-    }
+const DropCourse = catchAsync(async (req, res) => {
+  const enrollment = await EnrollmentService.dropCourse(req.validated.params.enrollmentId,req.user.id);
+  return ResponseHandler.success(res,"Course dropped successfully",enrollment);
+});
 
-    res.json({
-      message: "Lesson marked as complete",
-      progress: enrollment.progress,
-      completedLessons: enrollment.completedLessons,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
 module.exports = {
-  AddEnrollment,
-  EnrollmentsByUserId,
-  GetEnrollments,
-  MarkLessonComplete
+  EnrollInCourse,
+  GetMyEnrollments,
+  GetMyEnrollmentById,
+  CompleteLesson,
+  DropCourse,
 };
