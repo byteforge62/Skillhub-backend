@@ -53,6 +53,12 @@ const EnrollmentSchema = new Schema(
       default: null,
     },
 
+    /** Workspace bookmark for the track (Frame 81 "Saved" action). */
+    saved: {
+      type: Boolean,
+      default: false,
+    },
+
     enrolledAt: {
       type: Date,
       default: Date.now,

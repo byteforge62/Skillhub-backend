@@ -41,9 +41,22 @@ const completeLessonParamsSchema = z.object({
   }),
 });
 
+const lessonNoteSchema = z.object({
+  params: z.object({
+    enrollmentId: objectIdSchema,
+    lessonId: objectIdSchema,
+  }),
+  body: z.object({
+    content: z
+      .string({ required_error: "Note content is required" })
+      .max(5000, "A note cannot exceed 5000 characters"),
+  }),
+});
+
 module.exports = {
   createEnrollmentSchema,
   updateEnrollmentSchema,
   enrollmentIdParamsSchema,
   completeLessonParamsSchema,
+  lessonNoteSchema,
 };

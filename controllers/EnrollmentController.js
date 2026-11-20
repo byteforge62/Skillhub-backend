@@ -30,10 +30,46 @@ const DropCourse = catchAsync(async (req, res) => {
   return ResponseHandler.success(res,"Course dropped successfully",enrollment);
 });
 
+const ToggleSaved = catchAsync(async (req, res) => {
+  const enrollment = await EnrollmentService.toggleSavedEnrollment(
+    req.validated.params.enrollmentId,
+    req.user.id,
+  );
+  return ResponseHandler.success(
+    res,
+    enrollment.saved ? "Track saved" : "Track removed from saved",
+    enrollment,
+  );
+});
+
+const GetLessonNote = catchAsync(async (req, res) => {
+  const { enrollmentId, lessonId } = req.validated.params;
+  const note = await EnrollmentService.getLessonNote(
+    enrollmentId,
+    lessonId,
+    req.user.id,
+  );
+  return ResponseHandler.success(res, "Lesson note fetched successfully", note);
+});
+
+const SaveLessonNote = catchAsync(async (req, res) => {
+  const { enrollmentId, lessonId } = req.validated.params;
+  const note = await EnrollmentService.saveLessonNote(
+    enrollmentId,
+    lessonId,
+    req.user.id,
+    req.validated.body.content,
+  );
+  return ResponseHandler.success(res, "Lesson note saved", note);
+});
+
 module.exports = {
   EnrollInCourse,
   GetMyEnrollments,
   GetMyEnrollmentById,
   CompleteLesson,
   DropCourse,
+  ToggleSaved,
+  GetLessonNote,
+  SaveLessonNote,
 };

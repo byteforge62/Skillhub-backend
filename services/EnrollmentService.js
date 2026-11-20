@@ -2,6 +2,7 @@ const EnrollmentModel = require("../models/EnrollmentModel");
 const CourseModel = require("../models/CoursesModel");
 const LessonModel = require("../models/LessonModel");
 const CourseSectionModel = require("../models/CourseSectionModel");
+const LessonNoteModel = require("../models/LessonNoteModel");
 const AppError = require("../utils/AppError");
 
 const verifyCourseForEnrollment = async (courseId) => {
@@ -138,6 +139,7 @@ const decorateEnrollments = async (enrollments) => {
       order: lesson.order,
       duration: lesson.duration ?? 0,
       sectionTitle: lesson.sectionTitle,
+      sectionOrder: lesson.sectionOrder,
       index: index + 1,
     }));
 
@@ -191,7 +193,7 @@ const decorateEnrollments = async (enrollments) => {
 const coursePopulation = {
   path: "courseId",
   select:
-    "title description imageUrl price duration level language category createdBy",
+    "title description imageUrl price duration level language category createdBy cohortLabel tags",
   populate: [
     {
       path: "category",
@@ -336,10 +338,82 @@ const dropCourse = async (enrollmentId, userId) => {
   return enrollment;
 };
 
+const loadDecoratedEnrollment = async (enrollmentId) => {
+  const enrollment = await EnrollmentModel.findById(enrollmentId).populate(
+    coursePopulation,
+  );
+  const [decorated] = await decorateEnrollments([enrollment]);
+  return decorated;
+};
+
+/**
+ * Bookmarks the track without touching progress, so the workspace
+ * "Saved" toggle is a single boolean flip on the enrollment.
+ */
+const toggleSavedEnrollment = async (enrollmentId, userId) => {
+  const enrollment = await EnrollmentModel.findOne({
+    _id: enrollmentId,
+    userId,
+  });
+
+  if (!enrollment) {
+    throw new AppError("Enrollment not found", 404);
+  }
+
+  enrollment.saved = !enrollment.saved;
+  await enrollment.save();
+
+  return loadDecoratedEnrollment(enrollment._id);
+};
+
+const findOwnedEnrollment = async (enrollmentId, userId) => {
+  const enrollment = await EnrollmentModel.findOne({
+    _id: enrollmentId,
+    userId,
+  }).select("_id courseId");
+
+  if (!enrollment) {
+    throw new AppError("Enrollment not found", 404);
+  }
+
+  return enrollment;
+};
+
+const getLessonNote = async (enrollmentId, lessonId, userId) => {
+  await findOwnedEnrollment(enrollmentId, userId);
+
+  const note = await LessonNoteModel.findOne({ enrollmentId, lessonId });
+
+  return {
+    lessonId,
+    content: note?.content ?? "",
+    updatedAt: note?.updatedAt ?? null,
+  };
+};
+
+const saveLessonNote = async (enrollmentId, lessonId, userId, content) => {
+  await findOwnedEnrollment(enrollmentId, userId);
+
+  const note = await LessonNoteModel.findOneAndUpdate(
+    { enrollmentId, lessonId },
+    { $set: { content: content ?? "", userId } },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  );
+
+  return {
+    lessonId,
+    content: note.content,
+    updatedAt: note.updatedAt,
+  };
+};
+
 module.exports = {
   enrollInCourse,
   getMyEnrollments,
   getMyEnrollmentById,
   completeLesson,
   dropCourse,
+  toggleSavedEnrollment,
+  getLessonNote,
+  saveLessonNote,
 };

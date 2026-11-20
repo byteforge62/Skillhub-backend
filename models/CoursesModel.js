@@ -93,6 +93,18 @@ const CourseSchema = new Schema(
       default: "draft",
       index: true,
     },
+
+    /**
+     * Optional label for the workspace status pill (e.g. "Live cohort").
+     * Self-paced tracks leave it empty and the UI falls back to the
+     * enrollment status, so existing records need no migration.
+     */
+    cohortLabel: {
+      type: String,
+      trim: true,
+      maxlength: [40, "Cohort label cannot exceed 40 characters"],
+      default: null,
+    },
   },
   {
     timestamps: true,
