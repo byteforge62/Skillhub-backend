@@ -15,7 +15,10 @@ const AddEvent = catchAsync(async (req, res) => {
 });
 
 const GetEvents = catchAsync(async (req, res) => {
-  const events = await EventsService.getEvents(req.validated.query);
+  const events = await EventsService.getEvents(
+    req.validated.query,
+    req.user?.id ?? null,
+  );
   return ResponseHandler.success(
     res,
     "Events fetched successfully",
@@ -31,8 +34,23 @@ const GetMyEvents = catchAsync(async (req, res) => {
 });
 
 const GetEvent = catchAsync(async (req, res) => {
-  const event = await EventsService.getEvent(req.validated.params.eventId);
+  const event = await EventsService.getEvent(
+    req.validated.params.eventId,
+    req.user?.id ?? null,
+  );
   return ResponseHandler.success(res, "Event fetched successfully", event);
+});
+
+const RsvpEvent = catchAsync(async (req, res) => {
+  const event = await EventsService.toggleRsvp(
+    req.validated.params.eventId,
+    req.user.id,
+  );
+  return ResponseHandler.success(
+    res,
+    event.isRegistered ? "Registered for event successfully" : "Registration cancelled",
+    event,
+  );
 });
 
 const UpdateEvent = catchAsync(async (req, res) => {
@@ -59,6 +77,7 @@ module.exports = {
   GetEvents,
   GetMyEvents,
   GetEvent,
+  RsvpEvent,
   UpdateEvent,
   CancelEvent,
 };

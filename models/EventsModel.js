@@ -13,6 +13,18 @@ const EventSchema = Schema({
             type:Date,
             required:[true, "Event date is required"]
         },
+        /** Session length in minutes. Older records fall back to 60 in the API. */
+        duration:{
+            type:Number,
+            min:[0, "Event duration cannot be negative"],
+            default:60
+        },
+        /** Optional seat cap so the UI can show "N seats left". */
+        capacity:{
+            type:Number,
+            min:[1, "Event capacity must be at least 1"],
+            default:null
+        },
         location:{
             type:String,
             required:[true, "Event location is required"]

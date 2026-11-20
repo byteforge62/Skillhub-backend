@@ -13,6 +13,11 @@ const GetCourses = catchAsync(async (req, res) => {
   return ResponseHandler.success(res,"Courses fetched successfully",courses);
 });
 
+const GetFeaturedCourses = catchAsync(async (req, res) => {
+  const courses = await CourseService.getFeaturedCourses(req.query.limit);
+  return ResponseHandler.success(res, "Featured courses fetched successfully", courses);
+});
+
 const GetMyCourses = catchAsync(async (req, res) => {
   const courses = await CourseService.getMyCourses(req.user.id);
   return ResponseHandler.success(res, "Your courses fetched successfully", courses);
@@ -51,6 +56,7 @@ const UploadCourseThumbnail = catchAsync(async (req, res) => {
 module.exports = {
   CreateCourse,
   GetCourses,
+  GetFeaturedCourses,
   GetMyCourses,
   CourseById,
   UpdateCourse,

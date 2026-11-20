@@ -10,6 +10,7 @@ const {createCourseSchema,updateCourseSchema,courseQuerySchema} = require("../va
 
 route.post("/courses",authMiddleware.verifyToken,validate(createCourseSchema),CourseController.CreateCourse,);
 route.get("/courses",authMiddleware.verifyToken,validate(courseQuerySchema),CourseController.GetCourses,);
+route.get("/courses/featured",CourseController.GetFeaturedCourses,);
 route.get("/courses/me",authMiddleware.verifyToken,CourseController.GetMyCourses,);
 route.get("/courses/:id",authMiddleware.verifyToken,CourseController.CourseById,);
 route.patch("/courses/:id",authMiddleware.verifyToken,validate(updateCourseSchema),CourseController.UpdateCourse,);

@@ -34,6 +34,8 @@ const enrollInCourse = async (userId, courseId) => {
       existingEnrollment.progress = 0;
       existingEnrollment.completedLessons = [];
       existingEnrollment.completedAt = null;
+      existingEnrollment.lastAccessedLesson = null;
+      existingEnrollment.lastAccessedAt = null;
       existingEnrollment.enrolledAt = new Date();
 
       return await existingEnrollment.save();
@@ -49,36 +51,179 @@ const enrollInCourse = async (userId, courseId) => {
   });
 };
 
-const getMyEnrollments = async (userId) => {
-  return await EnrollmentModel.find({ userId })
-    .populate({
-      path: "courseId",
-      select:
-        "title description imageUrl price duration level language category",
-      populate: {
-        path: "category",
-        select: "name",
-      },
-    })
-    .sort({ updatedAt: -1 });
+const asId = (value) => String(value?._id ?? value ?? "");
+
+const toPlain = (doc) => (doc?.toObject ? doc.toObject() : doc);
+
+/**
+ * Adds the module context the workspace needs (next lesson, active section,
+ * remaining time). Derived from sections/lessons so it also works for records
+ * created before these fields existed.
+ */
+const decorateEnrollments = async (enrollments) => {
+  const list = enrollments.map(toPlain).filter(Boolean);
+  if (list.length === 0) return list;
+
+  const courseIds = [
+    ...new Set(
+      list
+        .map((item) => asId(item.courseId))
+        .filter((id) => /^[0-9a-fA-F]{24}$/.test(id)),
+    ),
+  ];
+
+  const sections = courseIds.length
+    ? await CourseSectionModel.find({ course: { $in: courseIds } })
+        .select("title order course")
+        .sort({ order: 1 })
+        .lean()
+    : [];
+
+  const sectionIds = sections.map((section) => section._id);
+
+  const lessons = sectionIds.length
+    ? await LessonModel.find({
+        section: { $in: sectionIds },
+        status: "published",
+      })
+        .select("title order duration section")
+        .sort({ order: 1 })
+        .lean()
+    : [];
+
+  const sectionById = new Map(
+    sections.map((section) => [String(section._id), section]),
+  );
+
+  const lessonsByCourse = new Map();
+
+  lessons.forEach((lesson) => {
+    const section = sectionById.get(String(lesson.section));
+    if (!section) return;
+
+    const key = String(section.course);
+    if (!lessonsByCourse.has(key)) lessonsByCourse.set(key, []);
+
+    lessonsByCourse.get(key).push({
+      _id: lesson._id,
+      title: lesson.title,
+      order: lesson.order,
+      duration: lesson.duration ?? 0,
+      sectionTitle: section.title,
+      sectionOrder: section.order,
+    });
+  });
+
+  lessonsByCourse.forEach((courseLessons) =>
+    courseLessons.sort(
+      (left, right) =>
+        left.sectionOrder - right.sectionOrder || left.order - right.order,
+    ),
+  );
+
+  const sectionCountByCourse = new Map();
+  sections.forEach((section) => {
+    const key = String(section.course);
+    sectionCountByCourse.set(key, (sectionCountByCourse.get(key) || 0) + 1);
+  });
+
+  return list.map((enrollment) => {
+    const course = toPlain(enrollment.courseId);
+    const courseKey = course && course._id ? String(course._id) : null;
+    const courseLessons = courseKey ? lessonsByCourse.get(courseKey) || [] : [];
+
+    const shapedLessons = courseLessons.map((lesson, index) => ({
+      _id: lesson._id,
+      title: lesson.title,
+      order: lesson.order,
+      duration: lesson.duration ?? 0,
+      sectionTitle: lesson.sectionTitle,
+      index: index + 1,
+    }));
+
+    const completedIds = new Set(
+      (enrollment.completedLessons || []).map((lesson) => asId(lesson)),
+    );
+
+    const completedLessonsCount = shapedLessons.filter((lesson) =>
+      completedIds.has(String(lesson._id)),
+    ).length;
+
+    const nextLesson =
+      shapedLessons.find((lesson) => !completedIds.has(String(lesson._id))) ||
+      shapedLessons[shapedLessons.length - 1] ||
+      null;
+
+    const lastAccessedId = enrollment.lastAccessedLesson
+      ? asId(enrollment.lastAccessedLesson)
+      : null;
+
+    const lastAccessedLesson =
+      (lastAccessedId &&
+        shapedLessons.find((lesson) => String(lesson._id) === lastAccessedId)) ||
+      nextLesson;
+
+    const minutesRemaining = shapedLessons
+      .filter((lesson) => !completedIds.has(String(lesson._id)))
+      .reduce((total, lesson) => total + (lesson.duration || 0), 0);
+
+    return {
+      ...enrollment,
+      totalLessons: shapedLessons.length,
+      completedLessonsCount,
+      remainingLessons: Math.max(shapedLessons.length - completedLessonsCount, 0),
+      minutesRemaining,
+      currentLesson: nextLesson,
+      nextLesson,
+      lastAccessedLesson,
+      courseId:
+        course && course._id
+          ? {
+              ...course,
+              lessonCount: shapedLessons.length,
+              sectionCount: sectionCountByCourse.get(courseKey) || 0,
+            }
+          : enrollment.courseId,
+    };
+  });
 };
 
-const getMyEnrollmentById = async (enrollmentId, userId) => {
-  const enrollment = await EnrollmentModel.findOne({_id: enrollmentId,userId}).populate({
-    path: "courseId",
-    select:
-      "title description imageUrl price duration level language category",
-    populate: {
+const coursePopulation = {
+  path: "courseId",
+  select:
+    "title description imageUrl price duration level language category createdBy",
+  populate: [
+    {
       path: "category",
       select: "name",
     },
-  });
+    {
+      path: "createdBy",
+      select: "fullname avatar",
+    },
+  ],
+};
+
+const getMyEnrollments = async (userId) => {
+  const enrollments = await EnrollmentModel.find({ userId })
+    .populate(coursePopulation)
+    .sort({ updatedAt: -1 });
+
+  return decorateEnrollments(enrollments);
+};
+
+const getMyEnrollmentById = async (enrollmentId, userId) => {
+  const enrollment = await EnrollmentModel.findOne({
+    _id: enrollmentId,
+    userId,
+  }).populate(coursePopulation);
 
   if (!enrollment) {
     throw new AppError("Enrollment not found", 404);
   }
 
-  return enrollment;
+  const [decorated] = await decorateEnrollments([enrollment]);
+  return decorated;
 };
 
 const completeLesson = async (enrollmentId,lessonId,userId) => {
@@ -134,6 +279,10 @@ const completeLesson = async (enrollmentId,lessonId,userId) => {
     }
   }
 
+  // Keep the resume pointer honest: the last lesson touched is the one to open.
+  enrollment.lastAccessedLesson = lessonId;
+  enrollment.lastAccessedAt = new Date();
+
   const publishedLessons = await LessonModel.find({
     section: { $in: sectionIds },
     status: "published",
@@ -165,7 +314,8 @@ const completeLesson = async (enrollmentId,lessonId,userId) => {
   }
 
   await enrollment.save();
-  return enrollment;
+  const [decorated] = await decorateEnrollments([enrollment]);
+  return decorated;
 };
 
 const dropCourse = async (enrollmentId, userId) => {

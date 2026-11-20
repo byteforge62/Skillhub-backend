@@ -35,6 +35,54 @@ const getCommunityOrThrow = async (communityId) => {
   return community;
 };
 
+/**
+ * Adds the counts the workspace rail and community list render. `members`
+ * keeps its original shape so existing consumers are unaffected.
+ */
+const withCommunityStats = async (communities) => {
+  const list = communities.map((community) =>
+    community?.toObject ? community.toObject() : community,
+  );
+
+  if (list.length === 0) return list;
+
+  const ids = list.map((community) => community._id);
+
+  const postCounts = await Post.aggregate([
+    { $match: { communityId: { $in: ids } } },
+    { $group: { _id: "$communityId", count: { $sum: 1 } } },
+  ]);
+  const postCountByCommunity = new Map(
+    postCounts.map((row) => [String(row._id), row.count]),
+  );
+
+  return list.map((community) => {
+    const members = community.members || [];
+    const shapedMembers = members.map((member) => {
+      const user = member.userId && typeof member.userId === "object"
+        ? member.userId
+        : null;
+
+      return {
+        userId: user?._id ?? member.userId,
+        role: member.role,
+        fullname: user?.fullname ?? null,
+        avatar: user?.avatar ?? null,
+      };
+    });
+
+    return {
+      ...community,
+      memberCount: members.length,
+      adminCount: members.filter((member) => member.role === "admin").length,
+      postCount: postCountByCommunity.get(String(community._id)) || 0,
+      recentMembers: shapedMembers
+        .filter((member) => member.fullname || member.avatar)
+        .slice(0, 5),
+    };
+  });
+};
+
 const createCommunity = async (communityData, userId) => {
   const { name, description, coverImage } = communityData;
   try {
@@ -54,9 +102,11 @@ const createCommunity = async (communityData, userId) => {
 };
 
 const getCommunities = async () => {
-  return Community.find()
+  const communities = await Community.find()
     .populate("createdBy", "fullname avatar")
     .populate("members.userId", "fullname avatar");
+
+  return withCommunityStats(communities);
 };
 
 const getCommunity = async (communityId) => {
@@ -69,7 +119,8 @@ const getCommunity = async (communityId) => {
     throw new AppError("Community not found", 404);
   }
 
-  return community;
+  const [shaped] = await withCommunityStats([community]);
+  return shaped;
 };
 
 const updateCommunity = async (

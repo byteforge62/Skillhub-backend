@@ -38,6 +38,21 @@ const EnrollmentSchema = new Schema(
       default: 0,
     },
 
+    /**
+     * Where the learner stopped. Kept alongside the derived "next lesson" so
+     * the workspace can resume on the exact lesson instead of guessing.
+     */
+    lastAccessedLesson: {
+      type: Schema.Types.ObjectId,
+      ref: "Lesson",
+      default: null,
+    },
+
+    lastAccessedAt: {
+      type: Date,
+      default: null,
+    },
+
     enrolledAt: {
       type: Date,
       default: Date.now,

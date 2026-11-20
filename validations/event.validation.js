@@ -13,7 +13,11 @@ const eventFields = {
 };
 
 const createEventSchema = z.object({
-  body: z.object(eventFields),
+  body: z.object({
+    ...eventFields,
+    duration: z.coerce.number().int().min(0).max(600).optional(),
+    capacity: z.coerce.number().int().min(1).max(100000).optional(),
+  }),
 });
 
 const eventIdParamsSchema = z.object({
@@ -33,6 +37,8 @@ const updateEventSchema = z.object({
       date: eventFields.date.optional(),
       location: eventFields.location.optional(),
       banner: eventFields.banner.optional(),
+      duration: z.coerce.number().int().min(0).max(600).optional(),
+      capacity: z.coerce.number().int().min(1).max(100000).optional(),
       status: z.literal("published").optional(),
     })
     .refine((data) => Object.keys(data).length > 0, {

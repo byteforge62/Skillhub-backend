@@ -15,7 +15,12 @@ route.post(
   validate(createEventSchema),
   EventsController.AddEvent,
 );
-route.get("/events", validate(eventQuerySchema), EventsController.GetEvents);
+route.get(
+  "/events",
+  authMiddleware.optionalAuth,
+  validate(eventQuerySchema),
+  EventsController.GetEvents,
+);
 route.get(
   "/events/mine",
   authMiddleware.verifyToken,
@@ -23,8 +28,15 @@ route.get(
 );
 route.get(
   "/events/:eventId",
+  authMiddleware.optionalAuth,
   validate(eventIdParamsSchema),
   EventsController.GetEvent,
+);
+route.patch(
+  "/events/:eventId/rsvp",
+  authMiddleware.verifyToken,
+  validate(eventIdParamsSchema),
+  EventsController.RsvpEvent,
 );
 route.patch(
   "/events/:eventId",
