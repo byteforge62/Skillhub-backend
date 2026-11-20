@@ -60,16 +60,16 @@ const updateSection = async(sectionId,userId,updateData) => {
         if(existingSection){
             throw new AppError("A section with this order already exists in this course",409);
         }
-
-        return await CourseSectionModel.findByIdAndUpdate(
-            sectionId,
-            updateData,
-            {
-                new:true,
-                runValidators: true,
-            }
-        )
     }
+
+    return await CourseSectionModel.findByIdAndUpdate(
+        sectionId,
+        updateData,
+        {
+            new:true,
+            runValidators: true,
+        }
+    )
 }
 
 const deleteSection = async(sectionId,userId) => {

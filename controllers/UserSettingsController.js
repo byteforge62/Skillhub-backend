@@ -34,7 +34,19 @@ const updateUserSettings = catchAsync(async (req, res) => {
   );
 });
 
+const resetUserSettings = catchAsync(async (req, res) => {
+  requireOwner(req);
+  const settings = await UserSettingsService.resetUserSettings(req.user.id);
+
+  return ResponseHandler.success(
+    res,
+    "User settings reset to defaults",
+    settings,
+  );
+});
+
 module.exports = {
   getUserSettings,
   updateUserSettings,
+  resetUserSettings,
 };

@@ -95,6 +95,15 @@ const CourseSchema = new Schema(
     },
 
     /**
+     * Set the first time the course is published. Creator surfaces use it for
+     * sorting and "published N days ago" labels; legacy rows simply leave it null.
+     */
+    publishedAt: {
+      type: Date,
+      default: null,
+    },
+
+    /**
      * Optional label for the workspace status pill (e.g. "Live cohort").
      * Self-paced tracks leave it empty and the UI falls back to the
      * enrollment status, so existing records need no migration.

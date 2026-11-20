@@ -19,4 +19,10 @@ route.put(
   validate(updateSettingsSchema),
   UserSettings.updateUserSettings,
 );
+route.post(
+  "/user/:userId/settings/reset",
+  authMiddleware.verifyToken,
+  validate(paramsSchema),
+  UserSettings.resetUserSettings,
+);
 module.exports = route;

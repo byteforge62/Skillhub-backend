@@ -1,3 +1,7 @@
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+
 const CourseModel = require("../models/CoursesModel");
 const CourseSectionModel = require("../models/CourseSectionModel");
 const LessonModel = require("../models/LessonModel");
@@ -6,6 +10,38 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const s3 = require("../config/s3");
 const AppError = require("../utils/AppError");
+
+const uploadsRoot = path.join(__dirname, "..", "uploads");
+const thumbnailExtensions = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/avif": ".avif",
+};
+
+/**
+ * Stores the thumbnail on local disk under /uploads. Used when S3 is not
+ * configured (or the upload fails) so course creation works out of the box.
+ */
+const storeThumbnailLocally = async (file) => {
+  const directory = path.join(uploadsRoot, "course-thumbnails");
+  await fs.promises.mkdir(directory, { recursive: true });
+
+  const extension = thumbnailExtensions[file.mimetype] || ".jpg";
+  const fileName = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${extension}`;
+
+  await fs.promises.writeFile(path.join(directory, fileName), file.buffer);
+
+  return `/uploads/course-thumbnails/${fileName}`;
+};
+
+const s3IsConfigured = () =>
+  Boolean(
+    process.env.AWS_BUCKET_NAME &&
+      process.env.AWS_ACCESS_KEY_ID &&
+      process.env.AWS_SECRET_ACCESS_KEY &&
+      process.env.AWS_REGION,
+  );
 
 const createCourse = async (userId, courseData) => {
   const course = await CourseModel.create({
@@ -31,20 +67,34 @@ const uploadCourseThumbnail = async (courseId, userId, file) => {
     throw new AppError("You are not authorized to update this course", 403);
   }
 
-  const fileName = `course-thumbnails/${Date.now()}-${file.originalname}`;
+  let imageUrl = null;
 
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: process.env.AWS_BUCKET_NAME,
-      Key: fileName,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-    }),
-  );
+  if (s3IsConfigured() && process.env.UPLOAD_DRIVER !== "local") {
+    try {
+      const fileName = `course-thumbnails/${Date.now()}-${crypto
+        .randomBytes(6)
+        .toString("hex")}${thumbnailExtensions[file.mimetype] || ".jpg"}`;
 
-  const imageUrl =
-    `https://${process.env.AWS_BUCKET_NAME}.s3.` +
-    `${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Key: fileName,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        }),
+      );
+
+      imageUrl =
+        `https://${process.env.AWS_BUCKET_NAME}.s3.` +
+        `${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+    } catch (error) {
+      imageUrl = null;
+    }
+  }
+
+  if (!imageUrl) {
+    imageUrl = await storeThumbnailLocally(file);
+  }
 
   course.imageUrl = imageUrl;
   await course.save();
@@ -213,11 +263,36 @@ const getCourseById = async (courseId) => {
 };
 
 const getMyCourses = async (userId) => {
-  return await CourseModel.find({
+  const courses = await CourseModel.find({
     createdBy: userId,
   })
+    .populate("createdBy", "fullname email avatar")
     .populate("category", "name")
     .sort({ updatedAt: -1 });
+
+  return withCourseStats(courses);
+};
+
+/**
+ * Creator view of a single course. Unlike the public detail endpoint this
+ * returns drafts and archived courses, but only to their owner.
+ */
+const getCourseForOwner = async (courseId, userId) => {
+  const course = await CourseModel.findById(courseId)
+    .populate("createdBy", "fullname email avatar")
+    .populate("category", "name");
+
+  if (!course) {
+    throw new AppError("Course not found", 404);
+  }
+
+  const ownerId = String(course.createdBy?._id ?? course.createdBy);
+  if (ownerId !== String(userId)) {
+    throw new AppError("You are not authorized to manage this course", 403);
+  }
+
+  const [shaped] = await withCourseStats([course]);
+  return shaped;
 };
 
 const updateCourse = async (courseId, userId, updateData) => {
@@ -260,6 +335,9 @@ const publishCourse = async (courseId, userId) => {
   }
 
   course.status = "published";
+  if (!course.publishedAt) {
+    course.publishedAt = new Date();
+  }
 
   await course.save();
 
@@ -313,6 +391,7 @@ module.exports = {
   getCourses,
   getFeaturedCourses,
   getCourseById,
+  getCourseForOwner,
   getMyCourses,
   updateCourse,
   publishCourse,

@@ -3,9 +3,12 @@ require("./events/listners");
 
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 
 const userRoutes = require("./routes/UserRoutes");
 const courseRoutes = require("./routes/CourseRoutes");
+const courseSectionRoutes = require("./routes/courseSectionRoutes");
+const lessonRoutes = require("./routes/lessonRoutes");
 const achievementRoutes = require("./routes/AchievementRoutes");
 const analyticsRoutes = require("./routes/AnalyticsRoutes");
 const adminlogRoutes = require("./routes/AdminLogRoutes");
@@ -30,6 +33,7 @@ const userSettingsRoutes = require("./routes/UserSettingsRoutes")
 const app = express();
 
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(cors({
   origin: (origin, callback) => {
     const allowedOrigins = [
@@ -54,6 +58,8 @@ app.get("/health", (req, res) => {
 // Routes
 app.use(userRoutes);
 app.use(courseRoutes);
+app.use(courseSectionRoutes);
+app.use(lessonRoutes);
 app.use(certificatesRoutes);
 app.use(achievementRoutes);
 app.use(analyticsRoutes);

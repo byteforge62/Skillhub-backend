@@ -5,6 +5,11 @@ const addCategory = async (categoryData) => {
     return addedCategory;
 };
 
+const listCategories = async () => {
+    return await CategoriesModel.find().sort({ name: 1 });
+};
+
 module.exports = {
     addCategory,
+    listCategories,
 };

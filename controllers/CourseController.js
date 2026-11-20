@@ -28,6 +28,11 @@ const CourseById = catchAsync(async (req, res) => {
   return ResponseHandler.success(res, "Course fetched successfully", course,);
 });
 
+const CourseForOwner = catchAsync(async (req, res) => {
+  const course = await CourseService.getCourseForOwner(req.params.id, req.user.id);
+  return ResponseHandler.success(res, "Course fetched successfully", course);
+});
+
 const UpdateCourse = catchAsync(async (req, res) => {
   const updatedCourse = await CourseService.updateCourse(req.params.id, req.user.id, req.validated.body,);
   return ResponseHandler.success(res, "Course updated successfully", updatedCourse,);
@@ -59,6 +64,7 @@ module.exports = {
   GetFeaturedCourses,
   GetMyCourses,
   CourseById,
+  CourseForOwner,
   UpdateCourse,
   PublishCourse,
   ArchiveCourse,

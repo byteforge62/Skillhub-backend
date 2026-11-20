@@ -104,6 +104,8 @@ const categories = [
 const courseBlueprints = [
   {
     title: "React State, Without the Guesswork",
+    imageUrl:
+      "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=1200&h=760&q=70",
     category: "Frontend Engineering",
     instructor: "rohan@skillhub.dev",
     level: "Intermediate",
@@ -178,6 +180,8 @@ const courseBlueprints = [
   },
   {
     title: "Designing REST APIs That Age Well",
+    imageUrl:
+      "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&h=760&q=70",
     category: "Backend & APIs",
     instructor: "sara@skillhub.dev",
     level: "Intermediate",
@@ -247,6 +251,8 @@ const courseBlueprints = [
   },
   {
     title: "JWT, Sessions and the Auth You Can Defend",
+    imageUrl:
+      "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?auto=format&fit=crop&w=1200&h=760&q=70",
     category: "Backend & APIs",
     instructor: DEMO.email,
     level: "Advanced",
@@ -319,6 +325,8 @@ const courseBlueprints = [
   },
   {
     title: "SQL for Application Developers",
+    imageUrl:
+      "https://images.unsplash.com/photo-1544383835-bda2bc66a55d?auto=format&fit=crop&w=1200&h=760&q=70",
     category: "Data & SQL",
     instructor: "sara@skillhub.dev",
     level: "Beginner",
@@ -388,6 +396,8 @@ const courseBlueprints = [
   },
   {
     title: "TypeScript for People Who Ship",
+    imageUrl:
+      "https://images.unsplash.com/photo-1517180102446-f3ece451e9d8?auto=format&fit=crop&w=1200&h=760&q=70",
     category: "Frontend Engineering",
     instructor: "rohan@skillhub.dev",
     level: "Intermediate",
@@ -456,6 +466,8 @@ const courseBlueprints = [
   },
   {
     title: "Accessibility for Product Teams",
+    imageUrl:
+      "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&h=760&q=70",
     category: "Frontend Engineering",
     instructor: "sara@skillhub.dev",
     level: "Beginner",
@@ -851,7 +863,8 @@ async function main() {
       level: blueprint.level,
       language: "English",
       price: 0,
-      imageUrl: null,
+      imageUrl: blueprint.imageUrl || null,
+      publishedAt: hoursAgo(24 * (blueprint.createdDaysAgo || 30)),
       tags: [MARK, ...blueprint.tags],
       status: "published",
       cohortLabel: blueprint.cohortLabel || null,
@@ -896,6 +909,68 @@ async function main() {
   }
 
   console.log(`Courses ready (${courseByTitle.size})`);
+
+  // A personal draft so the creator studio has something to edit immediately.
+  const draftCourse = await Course.create({
+    title: "Writing Documentation People Actually Read",
+    description:
+      "A short, practical draft about turning internal notes into documentation a teammate can follow without asking you.",
+    overview:
+      "Draft in progress: the reader, the shape of a page, and the small edits that make docs trustworthy.",
+    createdBy: demo._id,
+    category: categoryByName.get("Backend & APIs")._id,
+    duration: 90,
+    level: "Beginner",
+    language: "English",
+    price: 0,
+    imageUrl:
+      "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=1200&h=760&q=70",
+    tags: [MARK, "documentation", "writing"],
+    status: "draft",
+    cohortLabel: null,
+  });
+
+  const draftSection = await CourseSection.create({
+    course: draftCourse._id,
+    title: "Start with the reader",
+    description: "Who opens this page, and what do they need in the first minute?",
+    order: 1,
+  });
+
+  await Lesson.create({
+    section: draftSection._id,
+    title: "Name the reader",
+    description: "Write for one person doing one task.",
+    blocks: buildBlocks({
+      content:
+        "Before the first sentence, name the reader and the task. \"For engineers deploying the API for the first time\" is a better contract than \"introduction\".",
+    }),
+    duration: 9,
+    order: 1,
+    status: "draft",
+  });
+
+  await Lesson.create({
+    section: draftSection._id,
+    title: "One page, one job",
+    description: "Split pages when the reader changes.",
+    blocks: buildBlocks({
+      content:
+        "If two different readers need two different tasks, that is two pages. Length is not the problem; mixed intent is.",
+    }),
+    duration: 12,
+    order: 2,
+    status: "published",
+  });
+
+  if (draftCourse.createdAt) {
+    await Course.updateOne(
+      { _id: draftCourse._id },
+      { $set: { createdAt: hoursAgo(24 * 3) } },
+      { timestamps: false },
+    );
+  }
+
 
   let enrollmentCount = 0;
   for (const blueprint of courseBlueprints) {

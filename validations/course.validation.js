@@ -68,6 +68,13 @@ const createCourseSchema = z.object({
       .max(3000, "Course overview cannot exceed 3000 characters")
       .optional()
       .nullable(),
+
+    cohortLabel: z
+      .string()
+      .trim()
+      .max(40, "Cohort label cannot exceed 40 characters")
+      .optional()
+      .nullable(),
   }),
 });
 
@@ -133,6 +140,13 @@ const updateCourseSchema = z.object({
         .string()
         .trim()
         .max(3000, "Course overview cannot exceed 3000 characters")
+        .optional()
+        .nullable(),
+
+      cohortLabel: z
+        .string()
+        .trim()
+        .max(40, "Cohort label cannot exceed 40 characters")
         .optional()
         .nullable(),
     })

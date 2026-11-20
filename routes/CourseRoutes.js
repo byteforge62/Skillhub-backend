@@ -13,6 +13,7 @@ route.get("/courses",authMiddleware.verifyToken,validate(courseQuerySchema),Cour
 route.get("/courses/featured",CourseController.GetFeaturedCourses,);
 route.get("/courses/me",authMiddleware.verifyToken,CourseController.GetMyCourses,);
 route.get("/courses/:id",authMiddleware.verifyToken,CourseController.CourseById,);
+route.get("/courses/:id/manage",authMiddleware.verifyToken,CourseController.CourseForOwner,);
 route.patch("/courses/:id",authMiddleware.verifyToken,validate(updateCourseSchema),CourseController.UpdateCourse,);
 route.patch("/courses/:id/publish",authMiddleware.verifyToken,CourseController.PublishCourse,);
 route.patch("/courses/:id/archive",authMiddleware.verifyToken,CourseController.ArchiveCourse,);
